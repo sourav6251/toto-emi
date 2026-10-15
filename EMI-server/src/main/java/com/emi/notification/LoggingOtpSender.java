@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@Profile("!prod")
+// @Profile("!prod")
 public class LoggingOtpSender implements OtpSender {
 
     @Override
