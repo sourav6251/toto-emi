@@ -1,0 +1,26 @@
+name: Render Health Check & Keep Alive
+
+on:
+  schedule:
+    # Runs every 14 minutes (Render free tier sleeps after 15 minutes of inactivity)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Server
+        env:
+          # You can add RENDER_SERVER_URL to GitHub Secrets or Variables, or replace with your Render URL
+          SERVER_URL: ${{ secrets.RENDER_SERVER_URL || vars.RENDER_SERVER_URL || 'https://emi-server-dp5m.onrender.com' }}
+        run: |
+          echo "Sending health check ping to: ${SERVER_URL}/v3/api-docs"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "${SERVER_URL}/v3/api-docs" || true)
+          echo "HTTP response status: ${HTTP_STATUS}"
+          if [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 500 ]; then
+            echo "✅ Server successfully pinged and kept alive!"
+          else
+            echo "⚠️ Server returned status ${HTTP_STATUS} or timed out."
+          fi
+
