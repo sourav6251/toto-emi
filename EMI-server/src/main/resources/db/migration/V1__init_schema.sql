@@ -1,173 +1,32 @@
----- =========================================================
----- V1__init_schema.sql
----- E-Commerce PostgreSQL Schema with Flyway
----- =========================================================
---
----- 1. Users table
---CREATE TABLE IF NOT EXISTS users (
---    id BIGSERIAL PRIMARY KEY,
---    email VARCHAR(255) NOT NULL UNIQUE,
---    password_hash VARCHAR(255),
---    first_name VARCHAR(100),
---    last_name VARCHAR(100),
---    phone_number VARCHAR(20),
---    role VARCHAR(50) NOT NULL DEFAULT 'ROLE_CUSTOMER',
---    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_users_email ON users(email);
---
----- 2. OTPs table (for auth / password reset / verification)
---CREATE TABLE IF NOT EXISTS otps (
---    id BIGSERIAL PRIMARY KEY,
---    email VARCHAR(255) NOT NULL,
---    code VARCHAR(10) NOT NULL,
---    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
---    is_used BOOLEAN NOT NULL DEFAULT FALSE,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_otps_email ON otps(email);
---
----- 3. Addresses table
---CREATE TABLE IF NOT EXISTS addresses (
---    id BIGSERIAL PRIMARY KEY,
---    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
---    recipient_name VARCHAR(100) NOT NULL,
---    phone_number VARCHAR(20) NOT NULL,
---    street_address TEXT NOT NULL,
---    city VARCHAR(100) NOT NULL,
---    state VARCHAR(100) NOT NULL,
---    postal_code VARCHAR(20) NOT NULL,
---    country VARCHAR(100) NOT NULL DEFAULT 'India',
---    is_default BOOLEAN NOT NULL DEFAULT FALSE,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_addresses_user_id ON addresses(user_id);
---
----- 4. Categories table
---CREATE TABLE IF NOT EXISTS categories (
---    id BIGSERIAL PRIMARY KEY,
---    name VARCHAR(100) NOT NULL UNIQUE,
---    slug VARCHAR(120) NOT NULL UNIQUE,
---    description TEXT,
---    parent_id BIGINT REFERENCES categories(id) ON DELETE SET NULL,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_categories_slug ON categories(slug);
---
----- 5. Products table
---CREATE TABLE IF NOT EXISTS products (
---    id BIGSERIAL PRIMARY KEY,
---    category_id BIGINT REFERENCES categories(id) ON DELETE SET NULL,
---    name VARCHAR(255) NOT NULL,
---    slug VARCHAR(280) NOT NULL UNIQUE,
---    description TEXT,
---    sku VARCHAR(100) UNIQUE,
---    price NUMERIC(12, 2) NOT NULL,
---    stock_quantity INT NOT NULL DEFAULT 0,
---    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
---    weight DOUBLE PRECISION,
---    height DOUBLE PRECISION,
---    width DOUBLE PRECISION,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_products_category_id ON products(category_id);
---CREATE INDEX idx_products_slug ON products(slug);
---
----- 6. Product Images table
---CREATE TABLE IF NOT EXISTS product_images (
---    id BIGSERIAL PRIMARY KEY,
---    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
---    image_url TEXT NOT NULL,
---    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_product_images_product_id ON product_images(product_id);
---
----- 7. Carts table
---CREATE TABLE IF NOT EXISTS carts (
---    id BIGSERIAL PRIMARY KEY,
---    user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_carts_user_id ON carts(user_id);
---
----- 8. Cart Items table
---CREATE TABLE IF NOT EXISTS cart_items (
---    id BIGSERIAL PRIMARY KEY,
---    cart_id BIGINT NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
---    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
---    quantity INT NOT NULL CHECK (quantity > 0),
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    CONSTRAINT uq_cart_product UNIQUE (cart_id, product_id)
---);
---
---CREATE INDEX idx_cart_items_cart_id ON cart_items(cart_id);
---
----- 9. Orders table
---CREATE TABLE IF NOT EXISTS orders (
---    id BIGSERIAL PRIMARY KEY,
---    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
---    address_id BIGINT REFERENCES addresses(id) ON DELETE SET NULL,
---    total_amount NUMERIC(12, 2) NOT NULL,
---    order_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
---    payment_status VARCHAR(50) NOT NULL DEFAULT 'UNPAID',
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_orders_user_id ON orders(user_id);
---CREATE INDEX idx_orders_status ON orders(order_status);
---
----- 10. Order Items table
---CREATE TABLE IF NOT EXISTS order_items (
---    id BIGSERIAL PRIMARY KEY,
---    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
---    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
---    product_name VARCHAR(255) NOT NULL,
---    unit_price NUMERIC(12, 2) NOT NULL,
---    quantity INT NOT NULL CHECK (quantity > 0),
---    total_price NUMERIC(12, 2) NOT NULL
---);
---
---CREATE INDEX idx_order_items_order_id ON order_items(order_id);
---
----- 11. Payments table
---CREATE TABLE IF NOT EXISTS payments (
---    id BIGSERIAL PRIMARY KEY,
---    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
---    payment_method VARCHAR(50) NOT NULL,
---    gateway_transaction_id VARCHAR(255),
---    amount NUMERIC(12, 2) NOT NULL,
---    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_payments_order_id ON payments(order_id);
---
----- 12. Shipments table
---CREATE TABLE IF NOT EXISTS shipments (
---    id BIGSERIAL PRIMARY KEY,
---    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
---    tracking_number VARCHAR(100),
---    carrier VARCHAR(100),
---    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
---    shipped_at TIMESTAMP WITH TIME ZONE,
---    delivered_at TIMESTAMP WITH TIME ZONE,
---    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---);
---
---CREATE INDEX idx_shipments_order_id ON shipments(order_id);
---
+-- =========================================================
+-- V1__init_schema.sql
+-- EMI Management System Initial Database Schema
+-- Entity: Users
+-- =========================================================
+
+-- 1. Users Table
+CREATE TABLE IF NOT EXISTS users (
+    userid VARCHAR(255) NOT NULL,
+    full_name VARCHAR(150),
+    phone_number VARCHAR(15),
+    email VARCHAR(255),
+    password VARCHAR(255),
+    role VARCHAR(30),
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING_VERIFICATION',
+    otp VARCHAR(255),
+    otp_expire TIMESTAMP(6) WITHOUT TIME ZONE,
+    otp_verification_failed_attempted INTEGER DEFAULT 0,
+    last_failed_attempted TIMESTAMP(6) WITHOUT TIME ZONE,
+    last_login_at TIMESTAMP(6) WITH TIME ZONE,
+    created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT users_pkey PRIMARY KEY (userid),
+    CONSTRAINT uk_users_phone_number UNIQUE (phone_number),
+    CONSTRAINT users_role_check CHECK (role IS NULL OR role IN ('ADMIN', 'CUSTOMER_CARE', 'CUSTOMER')),
+    CONSTRAINT users_status_check CHECK (status IN ('PENDING_VERIFICATION', 'ACTIVE', 'INACTIVE', 'SUSPENDED'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+CREATE INDEX IF NOT EXISTS idx_users_phone_number ON users(phone_number);
