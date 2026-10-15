@@ -65,23 +65,14 @@ public class AuthService {
     }
 
     // Public self-registration always creates a CUSTOMER; staff accounts are created by an Admin
-    // Public self-registration always creates a CUSTOMER; staff accounts are created by an Admin
     @Transactional
     public RegisterResponse register(String id, RegisterRequest request) {
         Users existUser = userRepository.findById(id)
                 .orElseThrow(() -> new DomainException("User not found", HttpStatus.NOT_FOUND));
 
-        String phoneNumber = request.getPhoneNumber().trim();
-
-        // Check if phone number is already registered by another user
-        Optional<Users> userWithPhone = userRepository.findByPhoneNumber(phoneNumber);
-        if (userWithPhone.isPresent() && !userWithPhone.get().getUserID().equals(existUser.getUserID())) {
-            throw new DomainException("Phone number is already registered", HttpStatus.CONFLICT);
-        }
-
         // Check if this user is already active and registered
         if (existUser.getStatus() == UserStatus.ACTIVE && existUser.getPassword() != null) {
-            throw new DomainException("Phone number is already registered", HttpStatus.CONFLICT);
+            throw new DomainException("User is already registered", HttpStatus.CONFLICT);
         }
 
         String email = request.getEmail() == null || request.getEmail().isBlank()
@@ -94,7 +85,6 @@ public class AuthService {
         }
 
         existUser.setFullName(request.getFullName().trim());
-        existUser.setPhoneNumber(phoneNumber);
         existUser.setEmail(email);
         existUser.setPassword(passwordEncoder.encode(request.getPassword()));
         existUser.setRole(Role.CUSTOMER);
