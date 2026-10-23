@@ -1,12 +1,10 @@
 package com.emi.controller;
 
 
+import com.emi.annotation.CurrentUserId;
 import com.emi.annotation.TokenSubject;
 import com.emi.config.JWTService;
-import com.emi.dto.request.LoginRequest;
-import com.emi.dto.request.RegisterRequest;
-import com.emi.dto.request.ResendOtpRequest;
-import com.emi.dto.request.VerifyOtpRequest;
+import com.emi.dto.request.*;
 import com.emi.dto.response.ApiResponse;
 import com.emi.dto.response.AuthResponse;
 import com.emi.dto.response.MessageResponse;
@@ -62,7 +60,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@TokenSubject("registerToken") String id, @Valid @RequestBody RegisterRequest request) {
         RegisterResponse response=authService.register(id,request);
-        String token=jwtService.generateToken(response.userId(), response.role());
+        String token=jwtService.generateToken(response.getUserId(), response.getRole());
         ResponseCookie cookie = ResponseCookie.from("AccessToken", token)
                 .httpOnly(true)
                 .secure(true)
@@ -97,6 +95,12 @@ public class AuthController {
         return ResponseEntity.ok(authService.resendOtp(request));
     }
 
+    // create a api to forgot password
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse> resetPassword(@CurrentUserId String userId, @Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(userId,request);
+        return ResponseEntity.ok(ApiResponse.success().add("message", "Password reset link sent to your email"));
+    }
 
 //    @PatchMapping("/otp/verify")
 //    public ResponseEntity<?> verifyOTP(){

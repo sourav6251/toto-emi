@@ -2,10 +2,7 @@ package com.emi.service;
 
 
 import com.emi.config.JWTService;
-import com.emi.dto.request.LoginRequest;
-import com.emi.dto.request.RegisterRequest;
-import com.emi.dto.request.ResendOtpRequest;
-import com.emi.dto.request.VerifyOtpRequest;
+import com.emi.dto.request.*;
 import com.emi.dto.response.AuthResponse;
 import com.emi.dto.response.MessageResponse;
 import com.emi.dto.response.RegisterResponse;
@@ -42,8 +39,10 @@ public class AuthService {
     private final JWTService jwtService;
     private final OtpService otpService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CustomerService customerService;
+    private final AuditService auditService;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Users login(LoginRequest request) {
         String phoneNumber = request.getPhoneNumber().trim();
         Users user = userRepository.findByPhoneNumber(phoneNumber)
@@ -61,6 +60,7 @@ public class AuthService {
             throw new DomainException("Account verification pending. Please verify OTP first.", HttpStatus.FORBIDDEN);
         }
 
+        auditService.log(user.getUserID(), "Signed in", "", "");
         return user;
     }
 
@@ -96,6 +96,9 @@ public class AuthService {
             throw new DomainException("Phone number or email is already registered", HttpStatus.CONFLICT);
         }
 
+        // Same transaction as the login: if the borrower record can't be created, registration is rolled back
+        customerService.createMyProfile(existUser.getUserID(), CustomerProfileRequest.empty());
+
         // Delivered to listeners only after this transaction commits
         eventPublisher.publishEvent(UserRegisteredEvent.of(existUser.getUserID(), existUser.getRole()));
 
@@ -111,7 +114,7 @@ public class AuthService {
     // A wrong OTP must still persist the incremented attempt counter, so don't roll back on DomainException
     @Transactional(noRollbackFor = DomainException.class)
     public String verifyOtp(VerifyOtpRequest request) {
-        Users user = userRepository.findByPhoneNumber(request.phoneNumber().trim())
+        Users user = userRepository.findByPhoneNumber(request.getPhoneNumber().trim())
                 .orElseThrow(() -> new DomainException("User not found", HttpStatus.NOT_FOUND));
 
         String dbOTP = user.getOtp();
@@ -125,7 +128,7 @@ public class AuthService {
             throw new DomainException("Otp Expired", HttpStatus.BAD_REQUEST);
         }
 
-        if (!dbOTP.equals(request.otp().trim())) {
+        if (!dbOTP.equals(request.getOtp().trim())) {
             int attempts = user.getOtpVerificationFailedAttempted() != null ? user.getOtpVerificationFailedAttempted() + 1 : 1;
             user.setOtpVerificationFailedAttempted(attempts);
             user.setLastFailedAttempted(LocalDateTime.now());
@@ -144,8 +147,8 @@ public class AuthService {
     @Transactional
     public MessageResponse resendOtp(ResendOtpRequest request) {
         String otp = generateOTP();
-        Users user = userRepository.findByPhoneNumber(request.phoneNumber().trim())
-                .orElseGet(() -> userRepository.save(Users.builder().phoneNumber(request.phoneNumber().trim()).build()));
+        Users user = userRepository.findByPhoneNumber(request.getPhoneNumber().trim())
+                .orElseGet(() -> userRepository.save(Users.builder().phoneNumber(request.getPhoneNumber().trim()).build()));
         user.setOtp(otp);
         user.setOtpExpire(LocalDateTime.now().plusMinutes(5));
         user.setOtpVerificationFailedAttempted(0);
@@ -153,8 +156,25 @@ public class AuthService {
         return new MessageResponse(otp);
     }
 
+    public void forgotPassword(String userId, ForgotPasswordRequest request) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new DomainException("User not found", HttpStatus.NOT_FOUND));
+
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        // String otp = generateOTP();
+        // user.setOtp(otp);
+        // user.setOtpExpire(LocalDateTime.now().plusMinutes(5));
+        // user.setOtpVerificationFailedAttempted(0);
+        userRepository.save(user);
+
+        // Send OTP via email or SMS
+        // emailService.sendOtp(user.getEmail(), otp);
+    }
+
     private String generateOTP() {
         SecureRandom random = new SecureRandom();
         return String.format("%06d", random.nextInt(1_000_000));
     }
+
+
 }

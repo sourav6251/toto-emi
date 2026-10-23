@@ -56,6 +56,7 @@ public class Users {
     @Column( length = 255)
     private String email;
 
+    // @Jsoni 
     private String password;
 
     @Enumerated(EnumType.STRING)

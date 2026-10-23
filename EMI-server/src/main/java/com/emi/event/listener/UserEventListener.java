@@ -21,20 +21,20 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class UserEventListener {
 
-    private final OtpService otpService;
-
-    @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onUserRegistered(UserRegisteredEvent event) {
-        log.info("User registered: userId={}, role={}, eventId={}",
-                event.userId(), event.role(), event.eventId());
-
-        otpService.issue(event.userId(), OtpPurpose.REGISTRATION);
-    }
-
-    @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onOtpRequested(OtpRequestedEvent event) {
-        otpService.issue(event.userId(), event.purpose());
-    }
+//    private final OtpService otpService;
+//
+//    @Async
+//    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+//    public void onUserRegistered(UserRegisteredEvent event) {
+//        log.info("User registered: userId={}, role={}, eventId={}",
+//                event.userId(), event.role(), event.eventId());
+//
+//        otpService.issue(event.userId(), OtpPurpose.REGISTRATION);
+//    }
+//
+//    @Async
+//    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+//    public void onOtpRequested(OtpRequestedEvent event) {
+//        otpService.issue(event.userId(), event.purpose());
+//    }
 }

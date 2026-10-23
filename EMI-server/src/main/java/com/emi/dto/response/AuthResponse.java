@@ -1,15 +1,22 @@
 package com.emi.dto.response;
 
 import com.emi.utils.enums.Role;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
-public record AuthResponse(
-        UUID userId,
-        String fullName,
-        String phoneNumber,
-        String email,
-        Role role,
-        String accessToken
-) {
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AuthResponse {
+    private UUID userId;
+    private String fullName;
+    private String phoneNumber;
+    private String email;
+    private Role role;
+    private String accessToken;
 }

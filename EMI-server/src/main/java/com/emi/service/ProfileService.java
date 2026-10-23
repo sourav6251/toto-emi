@@ -32,12 +32,12 @@ public class ProfileService {
 
     private Users toUserEntity(ProfileResponse response) {
         return Users.builder()
-                .userID(response.userId())
-                .fullName(response.fullName())
-                .phoneNumber(response.phoneNumber())
-                .email(response.email())
-                .role(response.role())
-                .status(response.status())
+                .userID(response.getUserId())
+                .fullName(response.getFullName())
+                .phoneNumber(response.getPhoneNumber())
+                .email(response.getEmail())
+                .role(response.getRole())
+                .status(response.getStatus())
                 .build();
     }
 }
