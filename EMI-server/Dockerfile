@@ -2,13 +2,14 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# Cache dependencies separately from sources
-COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+# Ensure Maven respects container memory limits on Render free tier (512MB RAM)
+ENV MAVEN_OPTS="-Xmx400m -XX:+UseSerialGC"
 
+COPY pom.xml .
 COPY src ./src
-# maven.test.skip also skips compiling tests (current test sources don't compile)
-RUN mvn -B -q clean package -Dmaven.test.skip=true
+
+# Build JAR with tests skipped and progress logs visible (avoids silent timeouts)
+RUN mvn -B clean package -DskipTests
 
 # ---------- Run stage ----------
 FROM eclipse-temurin:21-jre
