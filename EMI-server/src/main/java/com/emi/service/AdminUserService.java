@@ -43,7 +43,6 @@ public class AdminUserService {
     private final AssetJpaRepository assetJpaRepository;
     private final EmiInstallmentJpaRepository emiInstallmentJpaRepository;
 
-    // Full record for one customer: profile, login (if any), and every finance with its asset and schedule
     @Transactional(readOnly = true)
     public CustomerDetailResponse getCustomerDetails(String adminId, String customerId) {
         Customer customer = customerJpaRepository.findById(customerId)
@@ -66,7 +65,6 @@ public class AdminUserService {
         );
     }
 
-    // Admin-created staff are ACTIVE immediately, so they can log in without OTP verification
     @Transactional
     public ProfileResponse createCustomerCare(String phoneNumber, String password) {
         if (userJpaRepository.existsByPhoneNumber(phoneNumber)) {
@@ -90,7 +88,6 @@ public class AdminUserService {
         return toResponse(user);
     }
 
-    // role == null → all users; newest first
     @Transactional(readOnly = true)
     public List<ProfileResponse> getUsers(Role role) {
         Sort newestFirst = Sort.by(Sort.Direction.DESC, "createdAt");
@@ -102,7 +99,6 @@ public class AdminUserService {
 
     @Transactional
     public ProfileResponse updateRole(String adminId, String userId, Role newRole) {
-        // ADMIN accounts are provisioned directly, never granted through the API
         if (newRole == Role.ADMIN) {
             throw new DomainException("ADMIN role cannot be assigned through this API", HttpStatus.FORBIDDEN);
         }

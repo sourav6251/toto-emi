@@ -48,11 +48,9 @@ public class Users {
     @Column(length = 150)
     private String fullName;
 
-    // Primary login identifier and contact number for calls/reminders
     @Column( unique = true, length = 15)
     private String phoneNumber;
 
-    // Used for forgot-password / notifications; optional for field staff
     @Column( length = 255)
     private String email;
 
@@ -63,7 +61,6 @@ public class Users {
     @Column( length = 30)
     private Role role;
 
-    // Accounts are deactivated, never hard-deleted, so audit logs and payment records keep a valid reference
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

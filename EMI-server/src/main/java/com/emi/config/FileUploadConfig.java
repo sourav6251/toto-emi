@@ -18,6 +18,10 @@ public class FileUploadConfig {
 
     @Bean
     public Cloudinary cloudinary() {
+        String url = storageProperties.getCloudinary().getUrl();
+        if (url != null && !url.isBlank()) {
+            return new Cloudinary(url);
+        }
         return new Cloudinary(
                 ObjectUtils.asMap(
                         "cloud_name", storageProperties.getCloudinary().getCloudName(),

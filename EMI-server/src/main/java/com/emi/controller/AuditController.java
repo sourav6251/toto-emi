@@ -17,7 +17,6 @@ public class AuditController {
 
     private final AuditService auditService;
 
-    // Recent audit trail, newest first (capped at 200); optionally filtered by action or user id
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> listAudit(@RequestParam(value = "action", required = false) String action,

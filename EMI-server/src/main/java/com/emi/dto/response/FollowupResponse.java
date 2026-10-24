@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
-// A logged call or visit. promiseDate is "" when the customer promised nothing.
 @Data
 @Builder
 @NoArgsConstructor

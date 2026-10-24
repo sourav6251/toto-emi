@@ -45,7 +45,6 @@ public class AuditLog {
     @Column(updatable = false, length = 500)
     private String detail;
 
-    // Related finance number or customer id; empty when there is none
     @Column(updatable = false)
     private String ref;
 

@@ -15,6 +15,7 @@ import com.emi.utils.enums.OtpPurpose;
 import com.emi.utils.enums.Role;
 import com.emi.utils.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private static final String OTP_SENT_MESSAGE = "If the number is registered and pending verification, an OTP has been sent";
@@ -64,13 +66,11 @@ public class AuthService {
         return user;
     }
 
-    // Public self-registration always creates a CUSTOMER; staff accounts are created by an Admin
     @Transactional
     public RegisterResponse register(String id, RegisterRequest request) {
         Users existUser = userRepository.findById(id)
                 .orElseThrow(() -> new DomainException("User not found", HttpStatus.NOT_FOUND));
 
-        // Check if this user is already active and registered
         if (existUser.getStatus() == UserStatus.ACTIVE && existUser.getPassword() != null) {
             throw new DomainException("User is already registered", HttpStatus.CONFLICT);
         }
@@ -96,10 +96,8 @@ public class AuthService {
             throw new DomainException("Phone number or email is already registered", HttpStatus.CONFLICT);
         }
 
-        // Same transaction as the login: if the borrower record can't be created, registration is rolled back
         customerService.createMyProfile(existUser.getUserID(), CustomerProfileRequest.empty());
 
-        // Delivered to listeners only after this transaction commits
         eventPublisher.publishEvent(UserRegisteredEvent.of(existUser.getUserID(), existUser.getRole()));
 
         return new RegisterResponse(
@@ -111,7 +109,6 @@ public class AuthService {
         );
     }
 
-    // A wrong OTP must still persist the incremented attempt counter, so don't roll back on DomainException
     @Transactional(noRollbackFor = DomainException.class)
     public String verifyOtp(VerifyOtpRequest request) {
         Users user = userRepository.findByPhoneNumber(request.getPhoneNumber().trim())
@@ -143,7 +140,6 @@ public class AuthService {
         return updatedUser.getUserID();
     }
 
-    // Same response whether or not the number exists, so this can't be used to discover registered numbers
     @Transactional
     public MessageResponse resendOtp(ResendOtpRequest request) {
         String otp = generateOTP();
@@ -157,6 +153,7 @@ public class AuthService {
     }
 
     public void forgotPassword(String userId, ForgotPasswordRequest request) {
+        log.info("User ID is {}",userId);
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new DomainException("User not found", HttpStatus.NOT_FOUND));
 

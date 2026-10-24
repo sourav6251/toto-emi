@@ -1,22 +1,18 @@
 package com.emi.utils;
 
 import com.emi.exception.DomainException;
-import com.emi.utils.enums.InterestType;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * EMI maths. Whole-rupee EMIs (field collection is in cash); the last installment absorbs rounding.
- * Rate is a yearly percentage. FLAT: interest = principal x rate x months / 12, spread evenly.
- * REDUCING_BALANCE: standard amortisation on the outstanding principal.
+ * Rate is a yearly percentage. interest = principal x rate x months / 12, spread evenly.
  */
 public final class EmiCalculator {
 
-    private static final MathContext MC = new MathContext(20, RoundingMode.HALF_UP);
     private static final BigDecimal MONTHS_X_PERCENT = BigDecimal.valueOf(1200);
 
     private EmiCalculator() {
@@ -28,10 +24,8 @@ public final class EmiCalculator {
     public record Plan(BigDecimal emi, BigDecimal totalInterest, BigDecimal totalPayable, List<Row> rows) {
     }
 
-    public static Plan calculate(BigDecimal principal, BigDecimal annualRate, InterestType type, int months) {
-        List<Row> rows = type == InterestType.FLAT
-                ? flat(principal, annualRate, months)
-                : reducing(principal, annualRate, months);
+    public static Plan calculate(BigDecimal principal, BigDecimal annualRate, int months) {
+        List<Row> rows = flat(principal, annualRate, months);
 
         for (Row row : rows) {
             if (row.principal().signum() <= 0 || row.interest().signum() < 0) {
@@ -60,29 +54,6 @@ public final class EmiCalculator {
             BigDecimal prin = amount.subtract(interest);
             balance = balance.subtract(prin);
             rows.add(row(i, prin, interest, amount, balance));
-        }
-        return rows;
-    }
-
-    private static List<Row> reducing(BigDecimal principal, BigDecimal rate, int n) {
-        BigDecimal r = rate.divide(MONTHS_X_PERCENT, MC);
-        BigDecimal emi;
-        if (r.signum() == 0) {
-            emi = principal.divide(BigDecimal.valueOf(n), 0, RoundingMode.CEILING);
-        } else {
-            BigDecimal growth = BigDecimal.ONE.add(r).pow(n, MC);
-            emi = principal.multiply(r).multiply(growth)
-                    .divide(growth.subtract(BigDecimal.ONE), MC)
-                    .setScale(0, RoundingMode.HALF_UP);
-        }
-
-        List<Row> rows = new ArrayList<>();
-        BigDecimal balance = principal;
-        for (int i = 1; i <= n; i++) {
-            BigDecimal interest = balance.multiply(r).setScale(0, RoundingMode.HALF_UP);
-            BigDecimal prin = i == n ? balance : emi.subtract(interest).min(balance);
-            balance = balance.subtract(prin);
-            rows.add(row(i, prin, interest, prin.add(interest), balance));
         }
         return rows;
     }

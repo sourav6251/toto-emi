@@ -16,12 +16,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
-// Builds a finance's summary (paid, outstanding, overdue, next due, EMI ribbon) from its schedule.
-// Upcoming / due / overdue are derived from dueDate, the finance's grace days and today, never stored.
 @Component
 public class FinanceSummaryAssembler {
 
-    // worstRank: 0=cancelled, 1=paid, 2=upcoming, 3=due, 4=partial, 5=overdue
     public record Summary(FinanceSummaryDto dto, BigDecimal outstanding, BigDecimal overdueAmount, int worstRank) {
     }
 

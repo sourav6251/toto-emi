@@ -11,6 +11,7 @@ import com.emi.dto.response.MessageResponse;
 import com.emi.dto.response.RegisterResponse;
 import com.emi.model.entity.Users;
 import com.emi.service.AuthService;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -58,7 +59,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse> register(@TokenSubject("registerToken") String id, @Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<ApiResponse> register(@Parameter(hidden = true) @TokenSubject("registerToken") String id, @Valid @RequestBody RegisterRequest request) {
         RegisterResponse response=authService.register(id,request);
         String token=jwtService.generateToken(response.getUserId(), response.getRole());
         ResponseCookie cookie = ResponseCookie.from("AccessToken", token)
@@ -95,11 +96,10 @@ public class AuthController {
         return ResponseEntity.ok(authService.resendOtp(request));
     }
 
-    // create a api to forgot password
     @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse> resetPassword(@CurrentUserId String userId, @Valid @RequestBody ForgotPasswordRequest request) {
-        authService.forgotPassword(userId,request);
-        return ResponseEntity.ok(ApiResponse.success().add("message", "Password reset link sent to your email"));
+    public ResponseEntity<ApiResponse> resetPassword(@Parameter(hidden = true) @TokenSubject(value = "registerToken",message = "Something went wrong, Try again") String subject, @Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(subject,request);
+        return ResponseEntity.ok(ApiResponse.success().add("message", "Password update successfully"));
     }
 
 //    @PatchMapping("/otp/verify")

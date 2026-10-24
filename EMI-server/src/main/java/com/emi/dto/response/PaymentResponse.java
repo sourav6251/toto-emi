@@ -22,6 +22,7 @@ public class PaymentResponse {
     private String financeId;
     private String customerId;
     private String customerName;
+    private String customerPhone;
     private BigDecimal amount;
     private LocalDate date;
     private String method;

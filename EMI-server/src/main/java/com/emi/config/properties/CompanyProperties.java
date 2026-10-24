@@ -6,8 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
-// The lender's details (UPI payee, receipt header) and the defaults a new finance form starts with.
-// Everything is optional; defaults can be overridden with company.defaults.* properties.
 @Data
 @Component
 @ConfigurationProperties(prefix = "company")
@@ -24,7 +22,6 @@ public class CompanyProperties {
 
     @Data
     public static class Defaults {
-        // Yearly percentage
         private BigDecimal rate = BigDecimal.valueOf(15);
         private String interestType = "FLAT";
         private int tenure = 24;

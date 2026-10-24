@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// Minimal row for the customer list; tenureMonths is from the latest non-cancelled finance
 @Data
 @Builder
 @NoArgsConstructor

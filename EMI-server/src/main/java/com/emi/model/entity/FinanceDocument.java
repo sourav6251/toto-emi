@@ -52,7 +52,6 @@ public class FinanceDocument {
     @Column(nullable = false)
     private String fileId;
 
-    // Document number as typed; identity numbers are masked when shown
     @Column(length = 50)
     private String docNumber;
 

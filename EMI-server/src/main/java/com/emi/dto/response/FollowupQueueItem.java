@@ -8,8 +8,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// One finance in the calling queue. The last-call fields (lastDate .. staffName) are null in the uncalled list.
-// promise is kept | broken | open, or null when no promise date was given.
 @Data
 @Builder
 @NoArgsConstructor

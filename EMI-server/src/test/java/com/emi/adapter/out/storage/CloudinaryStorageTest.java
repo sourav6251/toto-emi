@@ -1,14 +1,13 @@
 package com.emi.adapter.out.storage;
 
-import com.emi.adapter.out.storage.cloudinary.CloudinaryStorageAdapter;
-import com.emi.adapter.out.storage.cloudinary.dto.FileUploadResponseDTO;
-import com.emi.application.port.out.storage.FileStoragePort;
 import com.emi.config.FileUploadConfig;
+import com.emi.config.properties.StorageProperties;
+import com.emi.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,23 +22,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = {FileUploadConfig.class, CloudinaryStorageAdapter.class})
+@ContextConfiguration(classes = {FileUploadConfig.class, FileStorageService.class})
+@EnableConfigurationProperties(StorageProperties.class)
 @TestPropertySource(locations = "classpath:application-dev.properties")
 @ActiveProfiles("dev")
 @Slf4j
 class CloudinaryStorageTest {
 
     @Autowired
-    private FileStoragePort fileStoragePort;
-
-    @Value("${storage.url}")
-    private String storageUrl;
-    @Value("${storage.cloudName}")
-    private String cloudName;
-    @Value("${storage.api.key}")
-    private String apiKey;
-    @Value("${storage.api.secret}")
-    private String apiSecret;
+    private FileStorageService fileStorageService;
 
     @Test
     void testFileUploadToCloudinary()  {
@@ -55,16 +46,16 @@ class CloudinaryStorageTest {
         }catch (IOException e){
             log.error("File error= {}",e.getMessage());
         }
-        FileUploadResponseDTO url = fileStoragePort.upload(file);
+        FileStorageService.CloudinaryUploadResult result = fileStorageService.upload(file, "emi_documents");
         System.out.println("=================================================");
-        System.out.println("✅ Uploaded using FileUploadConfig: " + url);
+        System.out.println("✅ Uploaded using FileUploadConfig: " + result);
         System.out.println("=================================================");
 
-        assertNotNull(url);
-        assertTrue(url.url().startsWith("https://res.cloudinary.com/"));
+        assertNotNull(result);
+        assertTrue(result.secureUrl().startsWith("https://res.cloudinary.com/"));
 
         log.info("File delete credential= {}",file.getOriginalFilename());
-        fileStoragePort.delete(url.publicId());
+        fileStorageService.delete(result.publicId());
     }
 }
 

@@ -29,8 +29,6 @@ public class PortalService {
     private final FinanceJpaRepository financeJpaRepository;
     private final CompanyProperties companyProperties;
 
-    // Everything the borrower app needs in one call: profile, each non-cancelled loan account (rejected payments
-    // hidden, follow-ups never shown), company details, and a UPI link per loan with an EMI due.
     public Map<String, Object> portal(String callerId, Authentication authentication) {
         var customer = customerService.getCustomerDetail(callerId, authentication, callerId);
 
@@ -59,8 +57,6 @@ public class PortalService {
         return result;
     }
 
-    // One payable link per loan that has an EMI left to pay, for the app to turn into a QR code.
-    // UPI payments are then recorded by staff (or a gateway webhook), not by this link.
     private List<Map<String, Object>> upiLinks(List<FinanceDetailResponse> finances) {
         String upi = companyProperties.getUpi();
         if (upi == null || upi.isBlank()) {

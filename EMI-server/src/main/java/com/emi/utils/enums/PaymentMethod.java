@@ -22,7 +22,6 @@ public enum PaymentMethod {
         return this != CASH;
     }
 
-    // Accepts the display label ("Bank Transfer") or the enum name (BANK_TRANSFER), ignoring case
     public static PaymentMethod parse(String value) {
         if (value != null) {
             String wanted = value.trim();

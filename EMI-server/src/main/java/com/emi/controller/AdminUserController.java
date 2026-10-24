@@ -32,14 +32,12 @@ public class AdminUserController {
 
     private final AdminUserService adminUserService;
 
-    // Creates a login for a Customer Care staff member; the role is fixed, so ADMIN can't be created here
     @PostMapping
     public ResponseEntity<?> createCustomerCare(@Valid @RequestBody CreateStaffRequest request) {
         ProfileResponse user = adminUserService.createCustomerCare(request.getPhoneNumber(), request.getPassword());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", user));
     }
 
-    // Admin only: the class also allows CUSTOMER_CARE, and both rules must pass
     @GetMapping("/customers/{customerId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getCustomerDetails(@CurrentUserId String adminId,
@@ -48,7 +46,6 @@ public class AdminUserController {
         return ResponseEntity.ok(ApiResponse.success().add("data", details));
     }
 
-    // No role → every user; role=CUSTOMER / CUSTOMER_CARE / ADMIN → only that role
     @GetMapping
     public ResponseEntity<?> getUsers(@RequestParam(required = false) Role role) {
         List<ProfileResponse> users = adminUserService.getUsers(role);

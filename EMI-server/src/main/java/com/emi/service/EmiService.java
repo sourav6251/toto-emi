@@ -43,12 +43,9 @@ public class EmiService {
     public record Worklist(List<EmiItem> items, int total, BigDecimal totalAmount) {
     }
 
-    // An EMI with its finance and customer and its derived status, ready to become an EmiItem
     public record Row(EmiInstallment installment, Finance finance, Customer customer, String status, int daysLate) {
     }
 
-    // Collection worklist. Care staff see their own and unassigned customers, Admin sees all.
-    // Pending-approval and cancelled finances are never collected, so their EMIs are left out.
     @Transactional(readOnly = true)
     public Worklist worklist(String callerId, boolean isAdmin, String status, String q, Integer days) {
         String wanted = status == null || status.isBlank() ? "overdue" : status.trim().toLowerCase();
@@ -89,7 +86,6 @@ public class EmiService {
                 List.of(FinanceStatus.CANCELLED, FinanceStatus.PENDING_APPROVAL),
                 dbStatuses, from, to, isAdmin, callerId, pattern);
 
-        // Derive the status of each row; only rows that match the requested one are kept
         List<Row> matches = new ArrayList<>();
         for (Object[] r : rows) {
             EmiInstallment i = (EmiInstallment) r[0];
@@ -125,7 +121,6 @@ public class EmiService {
         return new Row(i, f, c, status, "paid".equals(status) ? 0 : (int) Math.max(late, 0));
     }
 
-    // Joins rows with their product and the staff member responsible for collection
     @Transactional(readOnly = true)
     public List<EmiItem> toItems(List<Row> rows) {
         if (rows.isEmpty()) {
@@ -166,7 +161,6 @@ public class EmiService {
         }).toList();
     }
 
-    // Upcoming / due / overdue are derived from the due date and the finance's grace days, never stored
     public String derive(EmiInstallment i, Finance f, LocalDate today) {
         if (i.getStatus() == InstallmentStatus.PAID || i.getAmountPaid().compareTo(i.getEmiAmount()) >= 0) {
             return "paid";

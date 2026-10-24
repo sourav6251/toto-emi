@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-// Append-only: this service only inserts and reads, there is no update or delete path
 @Service
 @AllArgsConstructor
 public class AuditService {
@@ -40,7 +39,6 @@ public class AuditService {
     ) {
     }
 
-    // Joins the caller's transaction, so an entry is only kept if the action it describes is committed
     @Transactional
     public void log(String userId, String action, String detail, String ref) {
         auditLogJpaRepository.save(AuditLog.builder()
@@ -51,7 +49,6 @@ public class AuditService {
                 .build());
     }
 
-    // Newest first, capped at 200. action and userId are optional filters.
     @Transactional(readOnly = true)
     public List<AuditItem> recent(String action, String userId) {
         boolean allActions = action == null || action.isBlank();

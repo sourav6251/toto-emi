@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 public class FollowupService {
 
     private static final String DEFAULT_CALL_STATUS = "Connected";
-    // Finances that no longer need chasing
     private static final List<FinanceStatus> FINISHED = List.of(
             FinanceStatus.CANCELLED, FinanceStatus.CLOSED, FinanceStatus.FORECLOSED);
 
@@ -54,8 +53,6 @@ public class FollowupService {
                         List<FollowupQueueItem> upcoming, List<FollowupQueueItem> uncalled) {
     }
 
-    // Logs the outcome of a call or visit, dated today and credited to the caller.
-    // Care staff can log against their own and unassigned customers; Admin against anyone.
     @Transactional
     public FollowupResponse record(String staffId, boolean isAdmin, FollowupRequest request) {
         Finance finance = financeJpaRepository.findByFinanceNumber(request.getFinanceId().trim())
@@ -93,7 +90,6 @@ public class FollowupService {
                 saved.getNextDate(), remarks == null ? "" : remarks, staffId, staffName);
     }
 
-    // Daily calling queue for the staff member's own and unassigned customers; Admin sees everyone's
     @Transactional(readOnly = true)
     public Queue queue(String callerId, boolean isAdmin) {
         return queue(callerId, isAdmin, true);
@@ -171,8 +167,6 @@ public class FollowupService {
         return new Queue(due, missed, upcoming, uncalled);
     }
 
-    // kept if a verified payment is dated between the call and the promise date; otherwise broken once the
-    // promise date has passed, else still open
     private String promiseOutcome(Followup last, LocalDate lastDate, List<Payment> payments, LocalDate today) {
         LocalDate promise = last.getPromiseDate();
         if (promise == null) {

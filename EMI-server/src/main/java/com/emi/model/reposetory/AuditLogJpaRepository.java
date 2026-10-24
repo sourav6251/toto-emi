@@ -10,7 +10,6 @@ import java.util.List;
 
 public interface AuditLogJpaRepository extends JpaRepository<AuditLog, String> {
 
-    // Newest first. action is ignored when allActions=true; userId when allUsers=true.
     @Query("""
             select a from AuditLog a
             where (:allActions = true or a.action = :action)

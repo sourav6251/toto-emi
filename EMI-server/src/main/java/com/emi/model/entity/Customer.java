@@ -55,7 +55,6 @@ public class Customer {
     @Column(length = 10)
     private Gender gender;
 
-    // Not unique: family members often share one phone
     @Column(nullable = false, length = 15)
     private String phoneNumber;
 
@@ -86,7 +85,6 @@ public class Customer {
     @Column(length = 6)
     private String pinCode;
 
-    // Full 12-digit Aadhaar number
     @Column(name = "aadhaar_number", length = 12)
     private String aadhaarNumber;
 
@@ -96,14 +94,11 @@ public class Customer {
     @Column(length = 20)
     private String voterIdNumber;
 
-    // Portal login, if the customer has one
     @Column(unique = true)
     private String userId;
 
-    // Customer Care staff responsible for collection
     private String assignedStaffId;
 
-    // Customers are deactivated, never hard-deleted, so finances keep a valid reference
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

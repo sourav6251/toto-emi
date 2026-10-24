@@ -9,7 +9,6 @@ import java.time.temporal.ChronoUnit;
 import com.emi.dto.response.CustomerDetailResponse.AssetInfo;
 import com.emi.dto.response.CustomerDetailResponse.FinanceSummaryDto;
 import com.emi.model.reposetory.UserJpaRepository;
-import com.emi.utils.enums.ProductType;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,12 +37,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @AllArgsConstructor
 public class FinanceService {
+
+    private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
 
     private final CustomerJpaRepository customerJpaRepository;
     private final FinanceJpaRepository financeJpaRepository;
@@ -63,8 +66,6 @@ public class FinanceService {
     public record DoNumberCheck(String doNumber, boolean available, String message) {
     }
 
-    // Advisory pre-check for the create form; a taken or invalid number is a normal answer, not an error.
-    // The message never says which finance holds the number, since the caller may not be assigned to that customer.
     @Transactional(readOnly = true)
     public DoNumberCheck checkDoNumber(String doNumber) {
         String cleaned = DoNumbers.clean(doNumber);
@@ -81,8 +82,6 @@ public class FinanceService {
         return new DoNumberCheck(cleaned, true, null);
     }
 
-    // Full loan account view. id is the FIN-YYYY-NNNNNN number or the internal id. A finance outside the caller's
-    // scope is reported as not found. Document numbers and photo links are only shown to Admin and Customer Care.
     @Transactional(readOnly = true)
     public FinanceDetailResponse getFinanceDetail(String callerId, Authentication authentication, String id) {
         Finance f = financeJpaRepository.findByFinanceNumber(id)
@@ -94,7 +93,6 @@ public class FinanceService {
         boolean isAdmin = hasRole(authentication, "ROLE_ADMIN");
         boolean isCare = hasRole(authentication, "ROLE_CUSTOMER_CARE");
         if (isAdmin) {
-            // sees everything
         } else if (isCare) {
             if (c.getAssignedStaffId() != null && !c.getAssignedStaffId().equals(callerId)) {
                 throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
@@ -193,6 +191,7 @@ public class FinanceService {
                 .graceDays(f.getGraceDays())
                 .lateFee(f.getLateFeeAmount())
                 .lateFees(lateFees)
+                .overduePercentage(f.getOverduePercentage())
                 .cancelReason(f.getStatus() == FinanceStatus.CANCELLED ? f.getRemarks() : null)
                 .createdByName(createdByName)
                 .customer(new FinanceDetailResponse.CustomerBrief(c.getCustomerId(), c.getFullName(),
@@ -216,26 +215,19 @@ public class FinanceService {
 
     private static final Set<String> LIST_STATUSES = Set.of("active", "overdue", "closed", "cancelled");
 
-    // Finance list for staff, newest first. Care staff see their own and unassigned customers, Admin sees all.
-    // status is derived from the schedule (overdue = any EMI past grace); productType is TOTO, BIKE, SOLAR or OTHER.
     @Transactional(readOnly = true)
-    public FinanceList listFinances(String callerId, boolean isAdmin, String q, String status, String productType) {
+    public FinanceList listFinances(String status, LocalDate startDate, LocalDate endDate) {
         String wantedStatus = status == null || status.isBlank() ? null : status.trim().toLowerCase();
         if (wantedStatus != null && !LIST_STATUSES.contains(wantedStatus)) {
             throw new DomainException("status must be one of active, overdue, closed, cancelled");
         }
-        ProductType wantedType = null;
-        if (productType != null && !productType.isBlank()) {
-            try {
-                wantedType = ProductType.valueOf(productType.trim().toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw new DomainException("productType must be one of TOTO, BIKE, SOLAR, OTHER");
-            }
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new DomainException("startDate must not be after endDate");
         }
+        OffsetDateTime start = startDate == null ? null : startDate.atStartOfDay(INDIA).toOffsetDateTime();
+        OffsetDateTime end = endDate == null ? null : endDate.plusDays(1).atStartOfDay(INDIA).toOffsetDateTime();
 
-        String pattern = "%" + (q == null ? "" : q.trim().toLowerCase()) + "%";
-        List<Object[]> rows = financeJpaRepository.search(
-                isAdmin, callerId, wantedType == null, wantedType == null ? ProductType.BATTERY : wantedType, pattern);
+        List<Object[]> rows = financeJpaRepository.search(start, end);
         if (rows.isEmpty()) {
             return new FinanceList(List.of(), 0);
         }
@@ -274,8 +266,6 @@ public class FinanceService {
         return new FinanceList(items, items.size());
     }
 
-    // Asset, finance and the full EMI schedule are saved together or not at all.
-    // totalPayable is the sum of the EMIs; processing fee and other charges are recorded but collected separately.
     @Transactional
     public FinanceInfo createFinance(String staffId, boolean isAdmin, FinanceCreateRequest request) {
         Customer customer = customerJpaRepository.findById(request.getCustomerId())
@@ -302,11 +292,11 @@ public class FinanceService {
 
         BigDecimal financeAmount = request.getProductPrice().subtract(request.getDownPayment());
         EmiCalculator.Plan plan = EmiCalculator.calculate(
-                financeAmount, request.getInterestRate(), request.getInterestType(), request.getTenureMonths());
+                financeAmount, request.getInterestRate(), request.getTenureMonths());
 
         FinanceCreateRequest.AssetRequest a = request.getAsset();
         Asset asset = assetJpaRepository.save(Asset.builder()
-                .productType(a.getProductType())
+//                .productType(a.getProductType())
                 .productName(a.getProductName().trim())
                 .brand(a.getBrand())
                 .model(a.getModel())
@@ -331,7 +321,7 @@ public class FinanceService {
                 .productPrice(request.getProductPrice())
                 .downPayment(request.getDownPayment())
                 .financeAmount(financeAmount)
-                .interestType(request.getInterestType())
+//                .interestType(request.getInterestType())
                 .interestRate(request.getInterestRate())
                 .tenureMonths(request.getTenureMonths())
                 .emiAmount(plan.emi())
@@ -343,6 +333,7 @@ public class FinanceService {
                 .emiDueDay(request.getFirstEmiDate().getDayOfMonth())
                 .graceDays(request.getGraceDays() != null ? request.getGraceDays() : 0)
                 .lateFeeAmount(orZero(request.getLateFeeAmount()))
+                .overduePercentage(orZero(request.getOverduePercentage()))
                 .status(FinanceStatus.PENDING_APPROVAL)
                 .remarks(request.getRemarks())
                 .createdBy(staffId)

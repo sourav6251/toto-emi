@@ -1,9 +1,12 @@
 package com.emi.controller;
 
 import com.emi.annotation.CurrentUserId;
+import com.emi.dto.request.CustomerProfileRequest;
 import com.emi.dto.request.WalkInCustomerRequest;
 import com.emi.dto.response.ApiResponse;
+import com.emi.dto.response.CustomerDetailResponse;
 import com.emi.service.CustomerService;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,19 +28,17 @@ public class CustomerController {
 
     private final CustomerService customerService;
 
-    // Staff enter a walk-in borrower who has no app login. Care staff take ownership of the record; Admin doesn't.
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
-    public ResponseEntity<?> createWalkInCustomer(@CurrentUserId String staffId,
+    public ResponseEntity<?> createWalkInCustomer(@Parameter(hidden = true) @CurrentUserId String staffId,
                                                   Authentication authentication,
-                                                  @Valid @RequestBody WalkInCustomerRequest request) {
+                                                  @Valid @RequestBody CustomerProfileRequest request) {
         boolean isCustomerCare = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER_CARE"));
         var customer = customerService.createWalkIn(staffId, isCustomerCare, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", customer));
     }
 
-    // Minimal paginated customer list (id, name, contact, loan tenure, outstanding, next due); search matches name or phone
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> listCustomers(@CurrentUserId String staffId,
@@ -56,13 +57,13 @@ public class CustomerController {
                 .add("totalPages", result.getTotalPages()));
     }
 
-    // Retrieve customer's 360° detail (profile, loans, EMI schedule, collection status)
+    // Retrieve customer's All detail (profile, loans, EMI schedule, collection status)
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE', 'CUSTOMER')")
     public ResponseEntity<?> getCustomerDetail(@CurrentUserId String currentUserId,
                                                Authentication authentication,
                                                @PathVariable("id") String customerId) {
-        var detail = customerService.getCustomerDetail(currentUserId, authentication, customerId);
+        CustomerDetailResponse detail = customerService.getCustomerDetail(currentUserId, authentication, customerId);
         return ResponseEntity.ok(ApiResponse.success().add("data", detail));
     }
 

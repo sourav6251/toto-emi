@@ -11,14 +11,12 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
-// Outcome of a call or visit. callStatus defaults to Connected; promiseDate is optional and cannot be in the past.
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class FollowupRequest {
 
-    // The FIN-YYYY-NNNNNN number or the internal id
     @NotBlank(message = "Finance is required")
     private String financeId;
 

@@ -51,7 +51,6 @@ public class CustomerService {
     private final EmiInstallmentJpaRepository emiInstallmentJpaRepository;
     private final FinanceSummaryAssembler financeSummaryAssembler;
 
-    // One borrower record per login; the phone number comes from the verified login, not the request
     @Transactional
     public CustomerResponse createMyProfile(String userId, CustomerProfileRequest request) {
         Users user = userJpaRepository.findById(userId)
@@ -74,19 +73,16 @@ public class CustomerService {
         return toResponse(customerJpaRepository.save(customer));
     }
 
-    // Staff enter a walk-in borrower who has no app login. assignToStaff is true when a Customer Care
-    // user creates the record, so they own the collection; Admin-created records are left unassigned.
     @Transactional
-    public CustomerResponse createWalkIn(String staffId, boolean assignToStaff, WalkInCustomerRequest request) {
-        CustomerProfileRequest profile = request.getProfile() == null ? CustomerProfileRequest.empty() : request.getProfile();
+    public CustomerResponse createWalkIn(String staffId, boolean assignToStaff, CustomerProfileRequest request) {
 
-        // Phone numbers aren't unique (families share one), so only block an exact repeat of phone + name
-        if (profile.getFullName() != null
-                && customerJpaRepository.existsByPhoneNumberAndFullName(request.getPhoneNumber(), profile.getFullName())) {
+
+        if (request.getFullName() != null
+                && customerJpaRepository.existsByPhoneNumberAndFullName(request.getPhoneNumber(), request.getFullName())) {
             throw new DomainException("A customer with this phone number and name already exists", HttpStatus.CONFLICT);
         }
 
-        Customer customer = profileFields(profile)
+        Customer customer = profileFields(request)
                 .phoneNumber(request.getPhoneNumber())
                 .assignedStaffId(assignToStaff ? staffId : null)
                 .status(CustomerStatus.ACTIVE)
@@ -96,7 +92,6 @@ public class CustomerService {
         return toResponse(customerJpaRepository.save(customer));
     }
 
-    // Lightweight paginated list for staff. Care staff see their own and unassigned customers, Admin sees all.
     @Transactional(readOnly = true)
     public Page<CustomerListItem> listCustomers(String callerId, boolean isAdmin, String search, int page, int size) {
         String pattern = "%" + (search == null ? "" : search.trim().toLowerCase()) + "%";
@@ -151,7 +146,6 @@ public class CustomerService {
         });
     }
 
-    // Customer 360° View: Profile, KYC, active & past loan accounts, EMI installment schedules, and collection status
     @Transactional(readOnly = true)
     public CustomerDetailResponse getCustomerDetail(String callerId, Authentication authentication, String customerId) {
         Customer customer = customerJpaRepository.findById(customerId)
@@ -165,7 +159,6 @@ public class CustomerService {
         boolean isCustomer = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"));
 
-        // Role-based access control
         if (isCustomer) {
             if (customer.getUserId() == null || !customer.getUserId().equals(callerId)) {
                 throw new DomainException("Access denied", HttpStatus.FORBIDDEN);
@@ -176,29 +169,12 @@ public class CustomerService {
             }
         }
 
-        // Assigned staff details
         String assignedToName = "Unassigned";
         if (customer.getAssignedStaffId() != null) {
             assignedToName = userJpaRepository.findById(customer.getAssignedStaffId())
                     .map(Users::getFullName)
                     .orElse("Unassigned");
         }
-
-        // User login info (if registered)
-        Users loginUser = customer.getUserId() != null
-                ? userJpaRepository.findById(customer.getUserId()).orElse(null)
-                : null;
-        CustomerDetailResponse.LoginInfo loginInfo = loginUser == null ? null : new CustomerDetailResponse.LoginInfo(
-                loginUser.getUserID(),
-                loginUser.getFullName(),
-                loginUser.getPhoneNumber(),
-                loginUser.getEmail(),
-                loginUser.getRole(),
-                loginUser.getStatus(),
-                loginUser.getLastLoginAt(),
-                loginUser.getCreatedAt(),
-                loginUser.getUpdatedAt()
-        );
 
         // Identity masking based on role (Aadhaar masked for all; PAN masked for Admin & Customer self; Voter ID for Admin only)
         String aadhaarMasked = customer.getAadhaarMasked();
@@ -215,7 +191,6 @@ public class CustomerService {
             voterMasked = voter.length() >= 4 ? "XXXXXX" + voter.substring(voter.length() - 4) : "XXXXXX";
         }
 
-        // Customer's finances & EMI schedule ledgers
         List<Finance> financeEntities = financeJpaRepository.findAllByCustomerId(customer.getCustomerId());
         LocalDate today = LocalDate.now();
 
@@ -310,12 +285,11 @@ public class CustomerService {
                 finances,
                 List.of(), // followups empty until followups module
                 customerInfo,
-                loginInfo,
+                null,
                 List.of()
         );
     }
 
-    // Profile fields shared by self-registration and staff entry; the caller sets phone, login and ownership
     private Customer.CustomerBuilder profileFields(CustomerProfileRequest request) {
         return Customer.builder()
                 .fullName(request.getFullName())

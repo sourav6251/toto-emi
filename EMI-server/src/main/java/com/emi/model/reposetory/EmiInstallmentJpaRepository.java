@@ -17,9 +17,6 @@ public interface EmiInstallmentJpaRepository extends JpaRepository<EmiInstallmen
 
     List<EmiInstallment> findAllByFinanceIdIn(Collection<String> financeIds);
 
-    // Candidates for the collection worklist, each row as [EmiInstallment, Finance, Customer].
-    // allCustomers=false limits to the staff member's own customers plus unassigned ones; pattern is a lowercase LIKE pattern.
-    // Grace days are per finance, so the exact status is decided by the caller.
     @Query("""
             select i, f, c from EmiInstallment i, Finance f, Customer c
             where i.financeId = f.financeId and f.customerId = c.customerId
@@ -36,4 +33,15 @@ public interface EmiInstallmentJpaRepository extends JpaRepository<EmiInstallmen
                                 @Param("allCustomers") boolean allCustomers,
                                 @Param("staffId") String staffId,
                                 @Param("pattern") String pattern);
+
+    @Query("""
+            select i, f from EmiInstallment i, Finance f
+            where i.financeId = f.financeId
+              and f.status not in (com.emi.utils.enums.FinanceStatus.CLOSED, com.emi.utils.enums.FinanceStatus.CANCELLED, com.emi.utils.enums.FinanceStatus.FORECLOSED)
+              and f.subscriptionId is not null
+              and i.status not in (com.emi.utils.enums.InstallmentStatus.PAID, com.emi.utils.enums.InstallmentStatus.WAIVED, com.emi.utils.enums.InstallmentStatus.CANCELLED)
+              and i.dueDate < :asOfDate
+            order by f.financeId, i.installmentNo
+            """)
+    List<Object[]> findOverdueInstallmentsWithSubscription(@Param("asOfDate") LocalDate asOfDate);
 }

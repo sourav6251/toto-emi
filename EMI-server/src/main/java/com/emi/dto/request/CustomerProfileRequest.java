@@ -1,10 +1,7 @@
 package com.emi.dto.request;
 
 import com.emi.utils.enums.Gender;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,6 +25,10 @@ public class CustomerProfileRequest {
     private LocalDate dateOfBirth;
 
     private Gender gender;
+
+    @NotBlank(message = "Phone number is required")
+    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be a valid 10-digit Indian mobile number")
+    private String phoneNumber;
 
     @Pattern(regexp = "^[6-9]\\d{9}$", message = "Alternate phone must be a valid 10-digit Indian mobile number")
     private String alternatePhoneNumber;
@@ -57,7 +58,6 @@ public class CustomerProfileRequest {
     @Pattern(regexp = "^\\d{6}$", message = "PIN code must be 6 digits")
     private String pinCode;
 
-    // Full 12-digit Aadhaar number
     @Pattern(regexp = "^\\d{12}$", message = "Aadhaar must be exactly 12 digits")
     private String aadhaarNumber;
 
@@ -67,7 +67,6 @@ public class CustomerProfileRequest {
     @Size(max = 20)
     private String voterIdNumber;
 
-    // Used when a borrower record is created at registration, before any profile details are entered
     public static CustomerProfileRequest empty() {
         return CustomerProfileRequest.builder().build();
     }

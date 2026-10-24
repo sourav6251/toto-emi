@@ -1,11 +1,14 @@
 package com.emi.controller;
 
 import com.emi.annotation.CurrentUserId;
+import com.emi.annotation.CurrentUserRole;
 import com.emi.dto.request.AttachDocumentRequest;
 import com.emi.dto.request.FinanceCreateRequest;
+import com.emi.dto.request.FinanceListRequest;
 import com.emi.service.DocumentService;
 import com.emi.dto.response.ApiResponse;
 import com.emi.service.FinanceService;
+import com.emi.utils.enums.Role;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,7 +18,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,25 +30,32 @@ public class FinanceController {
     private final FinanceService financeService;
     private final DocumentService documentService;
 
-    // Loan list, newest first. status: active, overdue, closed or cancelled; productType: TOTO, BIKE, SOLAR or OTHER;
-    // q matches finance number, customer name, mobile, DO number or vehicle number
+    // Loan list, newest first, unfiltered.
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
-    public ResponseEntity<?> listFinances(@CurrentUserId String staffId,
-                                          Authentication authentication,
-                                          @RequestParam(value = "q", required = false) String q,
-                                          @RequestParam(value = "status", required = false) String status,
-                                          @RequestParam(value = "productType", required = false) String productType) {
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        var result = financeService.listFinances(staffId, isAdmin, q, status, productType);
+    public ResponseEntity<?> listFinances(
+                                          @RequestBody FinanceListRequest request) {
+//        boolean isAdmin = role.name().equals("ROLE_ADMIN");
+        var result = financeService.listFinances(
+                request.getStatus(), request.getStartDate(), request.getEndDate());
         return ResponseEntity.ok(ApiResponse.success()
                 .add("items", result.items())
                 .add("total", result.total()));
     }
+    // Same list, filtered. status: active, overdue, closed or cancelled; startDate/endDate is an inclusive
+    // range on when the loan account was created. All fields in the body are optional.
+//    @PostMapping("/search")
+//    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
+//    public ResponseEntity<?> searchFinances(@CurrentUserId String staffId,
+//                                            @RequestBody FinanceListRequest request) {
+////        boolean isAdmin = role.name().equals("ROLE_ADMIN");
+//        var result = financeService.listFinances(
+//                request.getStatus(), request.getStartDate(), request.getEndDate());
+//        return ResponseEntity.ok(ApiResponse.success()
+//                .add("items", result.items())
+//                .add("total", result.total()));
+//    }
 
-    // Full loan account view: terms, EMI schedule, documents and payments. id is the FIN-YYYY-NNNNNN number.
-    // Customers can only open their own; Admin-only fields are null for everyone else.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE', 'CUSTOMER')")
     public ResponseEntity<?> getFinanceDetail(@CurrentUserId String callerId,
@@ -56,8 +65,6 @@ public class FinanceController {
         return ResponseEntity.ok(ApiResponse.success().add("data", detail));
     }
 
-    // Adds a document to a finance, or replaces its photo, using a file already uploaded with POST /documents.
-    // Admin uploads are Verified, staff uploads Pending. Returns the updated loan account view.
     @PostMapping("/{id}/documents")
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> attachDocument(@CurrentUserId String staffId,
@@ -71,7 +78,6 @@ public class FinanceController {
         return ResponseEntity.ok(ApiResponse.success().add("data", detail));
     }
 
-    // Creates the finance (status PENDING_APPROVAL) with its asset and the full EMI schedule
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> createFinance(@CurrentUserId String staffId,

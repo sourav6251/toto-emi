@@ -60,7 +60,6 @@ public class EmiInstallment {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal interestAmount;
 
-    // principalAmount + interestAmount
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal emiAmount;
 
@@ -81,7 +80,6 @@ public class EmiInstallment {
     @Builder.Default
     private InstallmentStatus status = InstallmentStatus.PENDING;
 
-    // Date the installment became fully paid
     private LocalDate paidAt;
 
     @Version

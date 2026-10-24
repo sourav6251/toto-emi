@@ -14,7 +14,6 @@ public class StorageProperties {
     private Imagekit imagekit=new Imagekit();
     private Local local=new Local();
 
-    // Document photos are kept on local disk, outside the web root; files are only served through the API
     @Data
     public static class Local{
         private String dir="uploads";

@@ -3,7 +3,6 @@ package com.emi.utils;
 import java.util.List;
 import java.util.Optional;
 
-// The document types a finance can carry. Identity documents are masked when their number is shown.
 public final class DocumentTypes {
 
     public record DocType(String key, String label, String group, boolean mandatory, boolean numbered) {

@@ -56,6 +56,7 @@ public class FinanceDetailResponse {
     private Integer graceDays;
     private BigDecimal lateFee;
     private BigDecimal lateFees;
+    private BigDecimal overduePercentage;
     private String cancelReason;
     private String createdByName;
     private CustomerBrief customer;

@@ -32,19 +32,15 @@ public class UploadedFile {
     @Column(nullable = false, updatable = false)
     private String fileId;
 
-    // Human-readable id shown to clients, e.g. FILE-000042
     @Column(nullable = false, unique = true, updatable = false, length = 20)
     private String fileNumber;
 
-    // Document type this photo was uploaded as, e.g. aadhaar
     @Column(nullable = false, updatable = false, length = 30)
     private String docKey;
 
-    // The client's file name, for display only
     @Column(nullable = false, updatable = false)
     private String fileName;
 
-    // Name on disk; generated, never taken from the client
     @Column(nullable = false, unique = true, updatable = false, length = 100)
     private String storedName;
 
@@ -58,7 +54,6 @@ public class UploadedFile {
     @Column(nullable = false, updatable = false, length = 50)
     private String mimeType;
 
-    // Full URL to download / view the file
     @Column(length = 500)
     private String url;
 

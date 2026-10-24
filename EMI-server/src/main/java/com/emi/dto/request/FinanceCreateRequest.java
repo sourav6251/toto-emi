@@ -18,7 +18,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// New finance: the financed asset, the terms, and the DO number. EMI amounts and the schedule are computed server-side.
 @Data
 @Builder
 @NoArgsConstructor
@@ -40,10 +39,9 @@ public class FinanceCreateRequest {
     @DecimalMin(value = "0.00", message = "Down payment cannot be negative")
     private BigDecimal downPayment;
 
-    @NotNull(message = "Interest type is required")
-    private InterestType interestType;
+    // @NotNull(message = "Interest type is required")
+    // private InterestType interestType;
 
-    // Yearly percentage, e.g. 18
     @NotNull(message = "Interest rate is required")
     @DecimalMin(value = "0.00", message = "Interest rate cannot be negative")
     @DecimalMax(value = "100.00", message = "Interest rate cannot exceed 100%")
@@ -58,7 +56,6 @@ public class FinanceCreateRequest {
     @Size(max = 50, message = "DO number is too long")
     private String doNumber;
 
-    // The EMI day of every month is taken from this date, so it must fall on day 1-28
     @NotNull(message = "First EMI date is required")
     private LocalDate firstEmiDate;
 
@@ -74,6 +71,10 @@ public class FinanceCreateRequest {
     @DecimalMin(value = "0.00", message = "Late fee cannot be negative")
     private BigDecimal lateFeeAmount;
 
+    @DecimalMin(value = "0.00", message = "Overdue percentage cannot be negative")
+    @DecimalMax(value = "100.00", message = "Overdue percentage cannot exceed 100%")
+    private BigDecimal overduePercentage;
+
     @Size(max = 500, message = "Remarks are too long")
     private String remarks;
 
@@ -82,8 +83,8 @@ public class FinanceCreateRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class AssetRequest {
-        @NotNull(message = "Product type is required")
-        private ProductType productType;
+        // @NotNull(message = "Product type is required")
+        // private ProductType productType;
 
         @NotBlank(message = "Product name is required")
         @Size(max = 150)

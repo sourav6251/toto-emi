@@ -10,7 +10,6 @@ public interface UploadedFileJpaRepository extends JpaRepository<UploadedFile, S
 
     Optional<UploadedFile> findByFileNumber(String fileNumber);
 
-    // Backs the FILE-NNNNNN file number
     @Query(value = "SELECT nextval('file_number_seq')", nativeQuery = true)
     long nextFileNumber();
 }

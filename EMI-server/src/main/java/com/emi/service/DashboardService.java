@@ -55,7 +55,6 @@ public class DashboardService {
     private final EmiService emiService;
     private final FollowupService followupService;
 
-    // Finances in scope with their customers and EMIs
     private record Loaded(List<Finance> finances, Map<String, Customer> customers,
                           Map<String, List<EmiInstallment>> installments) {
 
@@ -80,7 +79,6 @@ public class DashboardService {
         return new Loaded(finances, customers, installments);
     }
 
-    // Waived and cancelled EMIs are not collectable, so they are left out of every figure
     private boolean live(EmiInstallment i) {
         return i.getStatus() != InstallmentStatus.WAIVED && i.getStatus() != InstallmentStatus.CANCELLED;
     }
@@ -89,7 +87,6 @@ public class DashboardService {
         return i.getStatus() == InstallmentStatus.PAID || i.getAmountPaid().compareTo(i.getEmiAmount()) >= 0;
     }
 
-    // Admin home: lending and collection totals across everything
     @Transactional(readOnly = true)
     public Map<String, Object> admin() {
         LocalDate today = LocalDate.now();
@@ -225,7 +222,6 @@ public class DashboardService {
         return result;
     }
 
-    // Care home: only the caller's assigned customers
     @Transactional(readOnly = true)
     public Map<String, Object> care(String staffId) {
         LocalDate today = LocalDate.now();
@@ -297,7 +293,6 @@ public class DashboardService {
         return result;
     }
 
-    // 0: 1-30 days, 1: 31-60, 2: 61-90, 3: 90+
     private int bucketOf(long daysLate) {
         if (daysLate <= 30) {
             return 0;

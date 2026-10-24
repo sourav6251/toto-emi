@@ -36,7 +36,6 @@ public class JWTService {
         this.secretKey = Keys.hmacShaKeyFor(jwtProperties.getJwt().getSecret().getBytes(StandardCharsets.UTF_8));
     }
 
-    // unused - no callers in codebase currently
     public boolean isValid(String token) {
         try {
             validateToken(token);
@@ -46,7 +45,6 @@ public class JWTService {
         }
     }
 
-    // unused - no callers in codebase currently
     public Date getExpirationDate(String token) {
         try {
             return getAllClaims(token).getExpiration();
@@ -57,14 +55,12 @@ public class JWTService {
         }
     }
 
-    // unused - no callers in codebase currently
     public boolean isExpired(String token) {
         return getAllClaims(token)
                 .getExpiration()
                 .before(new Date());
     }
 
-    // unused - no callers in codebase currently
     public boolean hasRole(String token, String role) {
         return role.equals(
                 getClaim(token, "role", String.class));
@@ -74,7 +70,6 @@ public class JWTService {
         return  getClaim(token, "role", String.class);
     }
 
-    // unused - no callers in codebase currently
     public String extractAccessToken(HttpServletRequest request) {
         if (request == null) {
             return null;
@@ -108,7 +103,6 @@ public class JWTService {
         return null;
     }
 
-    // unused - no callers in codebase currently
     public String extractToken(HttpServletRequest request,String token) {
         if (request == null) {
             return null;
@@ -130,18 +124,15 @@ public class JWTService {
         return null;
     }
 
-    // unused - no callers in codebase currently
     public String generateToken(String userId, String role) {
         return generateToken(userId, role, jwtProperties.getJwt().getExpirationMs());
     }
 
-    // unused - no callers in codebase currently
     public String generateToken(String userId, String role, Integer expireTimeMS) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         return generateToken(userId, claims, expireTimeMS);
     }
-    // unused - no callers in codebase currently
     public String generateToken(String userId, Integer expireTimeMS) {
         Map<String, Object> claims = new HashMap<>();
 //        claims.put("role", role);
@@ -155,7 +146,6 @@ public class JWTService {
      * @param expireTimeMS in MS
      * @return
      */
-    // unused - no external callers currently; used internally by the overloads above
     public String generateToken(String userId, Map<String, Object> claims, Integer expireTimeMS) {
         return Jwts.builder()
                 .claims(claims)
@@ -205,7 +195,6 @@ public class JWTService {
                 .get(claimName, clazz);
     }
 
-    // unused - no callers in codebase currently
     public void validateToken(String token) throws JwtException {
         Jwts.parser()
                 .verifyWith(secretKey)

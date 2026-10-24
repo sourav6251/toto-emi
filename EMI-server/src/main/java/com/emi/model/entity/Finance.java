@@ -44,7 +44,6 @@ public class Finance {
     @Column(nullable = false, updatable = false)
     private String financeId;
 
-    // Human-readable id shown to users, e.g. FIN-2026-000125
     @Column(nullable = false, unique = true, updatable = false, length = 20)
     private String financeNumber;
 
@@ -63,7 +62,6 @@ public class Finance {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal downPayment;
 
-    // productPrice - downPayment
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal financeAmount;
 
@@ -71,7 +69,6 @@ public class Finance {
     @Column(nullable = false, length = 20)
     private InterestType interestType;
 
-    // Annual rate in percent, e.g. 18.000
     @Column(nullable = false, precision = 6, scale = 3)
     private BigDecimal interestRate;
 
@@ -98,7 +95,6 @@ public class Finance {
     @Column(nullable = false)
     private LocalDate firstEmiDate;
 
-    // 1-28 so every month has this day
     @Column(nullable = false)
     private Integer emiDueDay;
 
@@ -106,10 +102,19 @@ public class Finance {
     @Builder.Default
     private Integer graceDays = 0;
 
-    // Fixed fee charged once per installment overdue past the grace period
     @Column(nullable = false, precision = 12, scale = 2)
     @Builder.Default
     private BigDecimal lateFeeAmount = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal overduePercentage = BigDecimal.ZERO;
+
+    @Column(length = 100)
+    private String subscriptionId;
+
+    @Column(length = 50)
+    private String autoPayStatus;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -128,7 +133,6 @@ public class Finance {
 
     private OffsetDateTime closedAt;
 
-    // Optimistic lock: two staff recording payments at once can't overwrite each other
     @Version
     @Column(nullable = false)
     private Long version;

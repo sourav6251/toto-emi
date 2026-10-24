@@ -8,6 +8,7 @@ import com.emi.utils.enums.InterestType;
 import com.emi.utils.enums.ProductType;
 import com.emi.utils.enums.Role;
 import com.emi.utils.enums.UserStatus;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,7 +19,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-// 360° Customer Detail representation combining profile, KYC, loan portfolio, and repayment history.
 @Data
 @Builder
 @NoArgsConstructor
@@ -64,6 +64,7 @@ public class CustomerDetailResponse {
     private List<FinanceSummaryDto> finances;
     private List<FollowupDto> followups;
     private CustomerInfo customer;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private LoginInfo login;
     private List<FinanceInfo> rawFinances;
 

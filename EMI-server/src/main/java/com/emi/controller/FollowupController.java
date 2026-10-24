@@ -1,9 +1,12 @@
 package com.emi.controller;
 
 import com.emi.annotation.CurrentUserId;
+import com.emi.annotation.CurrentUserRole;
 import com.emi.dto.request.FollowupRequest;
 import com.emi.dto.response.ApiResponse;
 import com.emi.service.FollowupService;
+import com.emi.utils.enums.Role;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,8 +29,8 @@ public class FollowupController {
     // Daily calling queue: due (call today), missed, upcoming, and uncalled (overdue with no follow-up yet)
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
-    public ResponseEntity<?> getQueue(@CurrentUserId String staffId, Authentication authentication) {
-        var queue = followupService.queue(staffId, isAdmin(authentication));
+    public ResponseEntity<?> getQueue(@Parameter(hidden = true)  @CurrentUserId String staffId,@Parameter(hidden = true) @CurrentUserRole Role role) {
+        var queue = followupService.queue(staffId, isAdmin(role.name()));
         return ResponseEntity.ok(ApiResponse.success()
                 .add("due", queue.due())
                 .add("missed", queue.missed())
@@ -35,17 +38,16 @@ public class FollowupController {
                 .add("uncalled", queue.uncalled()));
     }
 
-    // Logs the outcome of a call or visit; calls are not recorded automatically
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
-    public ResponseEntity<?> logFollowup(@CurrentUserId String staffId,
-                                         Authentication authentication,
+    public ResponseEntity<?> logFollowup(@Parameter(hidden = true)  @CurrentUserId String staffId,
+                                         @Parameter(hidden = true) @CurrentUserRole Role role,
                                          @Valid @RequestBody FollowupRequest request) {
-        var followup = followupService.record(staffId, isAdmin(authentication), request);
+        var followup = followupService.record(staffId, isAdmin(role.name()), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", followup));
     }
 
-    private boolean isAdmin(Authentication authentication) {
-        return authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    private boolean isAdmin(String role) {
+        return role.equals("ROLE_ADMIN");
     }
 }

@@ -8,7 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// Staff-entered borrower with no app login. Phone is required because the customer has no login to take it from.
 @Data
 @Builder
 @NoArgsConstructor

@@ -45,7 +45,6 @@ public class TokenSubjectResolver implements HandlerMethodArgumentResolver {
             return null;
         }
 
-        // Determine token name
         String tokenName = !annotation.value().isEmpty() ? annotation.value() :
                            !annotation.name().isEmpty() ? annotation.name() :
                            !annotation.cookieName().isEmpty() ? annotation.cookieName() :
@@ -56,13 +55,11 @@ public class TokenSubjectResolver implements HandlerMethodArgumentResolver {
 
         String token = null;
 
-        // 1. Try to retrieve token from HTTP header first
         String headerValue = request.getHeader(headerName);
         if (headerValue != null && !headerValue.trim().isEmpty()) {
             token = cleanTokenPrefix(headerValue, tokenName);
         }
 
-        // 2. If missing in header, try to retrieve from cookies
         if (token == null || token.isEmpty()) {
             Cookie[] cookies = request.getCookies();
             if (cookies != null) {
@@ -75,23 +72,19 @@ public class TokenSubjectResolver implements HandlerMethodArgumentResolver {
             }
         }
 
-        // 3. Handle missing token based on required flag
         if (token == null || token.isEmpty()) {
             if (annotation.required()) {
-                String errorMsg = !annotation.message().trim().isEmpty()
-                        ? annotation.message()
-                        : "Missing '" + tokenName + "' token in request headers or cookies";
+                String errorMsg = errorMessage(annotation, "Missing '" + tokenName + "' token in request headers or cookies");
                 log.warn("TokenSubjectResolver: {}", errorMsg);
                 throw new DomainException(errorMsg, HttpStatus.UNAUTHORIZED);
             }
             return null;
         }
 
-        // 4. Extract subject from the token
         try {
             String subject = jwtService.getUserID(token);
             if ((subject == null || subject.trim().isEmpty()) && annotation.required()) {
-                throw new DomainException("Subject not found in token", HttpStatus.UNAUTHORIZED);
+                throw new DomainException(errorMessage(annotation, "Subject not found in token"), HttpStatus.UNAUTHORIZED);
             }
             return subject;
         } catch (DomainException e) {
@@ -99,10 +92,14 @@ public class TokenSubjectResolver implements HandlerMethodArgumentResolver {
         } catch (Exception e) {
             log.warn("TokenSubjectResolver: Failed to parse token - {}", e.getMessage());
             if (annotation.required()) {
-                throw new DomainException("Invalid or expired token", HttpStatus.UNAUTHORIZED);
+                throw new DomainException(errorMessage(annotation, "Invalid or expired token"), HttpStatus.UNAUTHORIZED);
             }
             return null;
         }
+    }
+
+    private String errorMessage(TokenSubject annotation, String fallback) {
+        return !annotation.message().trim().isEmpty() ? annotation.message() : fallback;
     }
 
     private String cleanTokenPrefix(String rawValue, String tokenName) {

@@ -29,7 +29,6 @@ public class MetaController {
     private final CompanyProperties companyProperties;
     private final UserJpaRepository userJpaRepository;
 
-    // Defaults and lists the forms need. Any signed-in user may read it; it changes only when settings change.
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> getMeta() {

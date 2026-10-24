@@ -31,7 +31,9 @@ import java.time.OffsetDateTime;
 @Table(name = "payments", indexes = {
         @Index(name = "idx_payments_finance", columnList = "financeId"),
         @Index(name = "idx_payments_status", columnList = "status"),
-        @Index(name = "idx_payments_payment_date", columnList = "paymentDate")
+        @Index(name = "idx_payments_payment_date", columnList = "paymentDate"),
+        @Index(name = "idx_payments_txnid", columnList = "txnId"),
+        @Index(name = "idx_payments_reference", columnList = "reference")
 })
 @Getter
 @Setter
@@ -45,7 +47,6 @@ public class Payment {
     @Column(nullable = false, updatable = false)
     private String paymentId;
 
-    // Human-readable ids shown to users, e.g. PAY-001590 and RCT-2026-001590
     @Column(nullable = false, unique = true, updatable = false, length = 20)
     private String paymentNumber;
 
@@ -61,7 +62,6 @@ public class Payment {
     @Column(nullable = false, updatable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
-    // Date the money was received, not when it was entered
     @Column(nullable = false, updatable = false)
     private LocalDate paymentDate;
 
@@ -69,7 +69,6 @@ public class Payment {
     @Column(nullable = false, updatable = false, length = 20)
     private PaymentMethod method;
 
-    // UPI ref / UTR / cheque number; null for cash
     @Column(length = 100)
     private String txnId;
 
@@ -79,7 +78,6 @@ public class Payment {
     @Column(length = 500)
     private String remarks;
 
-    // Staff who physically collected the money; null for online payments recorded by an admin
     private String collectedBy;
 
     @Enumerated(EnumType.STRING)
@@ -92,10 +90,6 @@ public class Payment {
 
     @Column(nullable = false, updatable = false)
     private String createdBy;
-
-    // Lets a retried request return the original payment instead of creating a second receipt
-    @Column(unique = true, updatable = false, length = 100)
-    private String idempotencyKey;
 
     @Version
     @Column(nullable = false)

@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// Sensitive identity numbers are masked or left out of the response
 @Data
 @Builder
 @NoArgsConstructor

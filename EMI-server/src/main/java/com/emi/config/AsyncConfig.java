@@ -28,18 +28,14 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("emi-async-");
-        // Queue full: run on the caller's thread instead of dropping the task
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();
 
-        // Carry the logged-in user's SecurityContext into the async thread
         return new DelegatingSecurityContextAsyncTaskExecutor(executor);
     }
 
-    // Only invoked for void @Async methods; CompletableFuture-returning methods surface errors through the future.
-    // Params are not logged: they can carry phone numbers, passwords or KYC data.
     @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         return (ex, method, params) -> log.error("Async method {}.{} failed",

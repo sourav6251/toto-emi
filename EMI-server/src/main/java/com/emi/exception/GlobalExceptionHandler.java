@@ -83,7 +83,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONTENT_TOO_LARGE, "File is larger than 5 MB", request);
     }
 
-    // Thrown by @PreAuthorize when the caller's role is not allowed
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return build(HttpStatus.FORBIDDEN, "You do not have permission to perform this action", request);
@@ -94,7 +93,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
-    // Fallback: log the real cause, never leak internals to the client
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);

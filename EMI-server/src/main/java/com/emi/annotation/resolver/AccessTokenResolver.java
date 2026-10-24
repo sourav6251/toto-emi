@@ -68,7 +68,6 @@ public class AccessTokenResolver implements HandlerMethodArgumentResolver {
             }
         }
 
-        // 2. Check Standard Authorization Header if not found
         if (token == null || token.isEmpty()) {
             String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.toLowerCase().startsWith("bearer ")) {
@@ -91,7 +90,6 @@ public class AccessTokenResolver implements HandlerMethodArgumentResolver {
             }
         }
 
-        // 4. Check Query Parameter (e.g. ?token=... or ?otp_token=...) as fallback
         if (token == null || token.isEmpty()) {
             String paramValue = request.getParameter(cookieName);
             if (paramValue == null || paramValue.trim().isEmpty()) {
@@ -104,7 +102,6 @@ public class AccessTokenResolver implements HandlerMethodArgumentResolver {
 
         log.info("AccessTokenResolver: resolved token for '{}' = {}", tokenName, (token != null ? "[PRESENT]" : "[NOT FOUND]"));
 
-        // 5. Handle required constraint with dynamic/custom error message
         if ((token == null || token.isEmpty()) && annotation.required()) {
             String errorMsg = (annotation.message() != null && !annotation.message().trim().isEmpty())
                     ? annotation.message()

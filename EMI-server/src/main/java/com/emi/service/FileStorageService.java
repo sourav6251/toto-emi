@@ -114,11 +114,9 @@ public class FileStorageService {
         } else {
             s = s.substring(uploadIndex + "/image/upload/".length());
         }
-        // strip optional version v1234567/
         if (s.matches("^v\\d+/.*")) {
             s = s.substring(s.indexOf('/') + 1);
         }
-        // strip extension like .png, .jpg
         int dot = s.lastIndexOf('.');
         if (dot != -1) {
             s = s.substring(0, dot);

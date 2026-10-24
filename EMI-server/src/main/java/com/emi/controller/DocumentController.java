@@ -36,7 +36,6 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", uploaded));
     }
 
-    // Serves a stored photo to staff; photos never have a public URL
     @GetMapping("/documents/{id}/file")
     public ResponseEntity<?> getDocumentFile(@PathVariable("id") String id) {
         var stored = documentService.load(id);
@@ -48,7 +47,6 @@ public class DocumentController {
                 .body(stored.resource());
     }
 
-    // Deletes an uploaded document photo from Cloudinary and database
     @DeleteMapping("/documents/{id}")
     public ResponseEntity<?> deleteDocument(@CurrentUserId String userId, @PathVariable("id") String id) {
         documentService.delete(userId, id);

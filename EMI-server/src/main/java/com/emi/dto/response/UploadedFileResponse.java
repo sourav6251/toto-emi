@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 
-// id is the FILE-NNNNNN number to pass when attaching the photo to a finance
 @Data
 @Builder
 @NoArgsConstructor

@@ -53,11 +53,9 @@ public class Followup {
     @Column(nullable = false, updatable = false, length = 500)
     private String response;
 
-    // What the customer promised to pay by, if anything
     @Column(updatable = false)
     private LocalDate promiseDate;
 
-    // When to call again
     @Column(nullable = false, updatable = false)
     private LocalDate nextDate;
 

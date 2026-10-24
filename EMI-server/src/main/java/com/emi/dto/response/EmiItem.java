@@ -8,8 +8,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// One EMI joined with its finance and customer, for the collection worklist.
-// status is derived: due | partial | overdue | upcoming | paid
 @Data
 @Builder
 @NoArgsConstructor

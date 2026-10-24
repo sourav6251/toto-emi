@@ -10,7 +10,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-// Receipt view: the payment plus how it was applied, and the finance, customer and company it belongs to
 @Data
 @Builder
 @NoArgsConstructor

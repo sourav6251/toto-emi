@@ -17,7 +17,6 @@ public class DoNumberController {
 
     private final FinanceService financeService;
 
-    // Tells the create form whether a DO number can be used; POST /finances re-checks, so this is advisory
     @GetMapping("/check")
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> checkDoNumber(@RequestParam("doNumber") String doNumber) {

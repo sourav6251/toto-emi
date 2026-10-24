@@ -11,17 +11,14 @@ public final class DoNumbers {
     private DoNumbers() {
     }
 
-    // Trimmed, runs of spaces collapsed to one, upper-cased
     public static String clean(String raw) {
         return raw == null ? "" : raw.trim().replaceAll("\\s+", " ").toUpperCase();
     }
 
-    // Letters, digits, spaces and - / . only, starting with a letter or digit, at most 40 characters
     public static boolean isValid(String cleaned) {
         return VALID.matcher(cleaned).matches();
     }
 
-    // Form used to compare two numbers
     public static String key(String cleaned) {
         return cleaned.replace(" ", "");
     }

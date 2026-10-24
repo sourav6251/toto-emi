@@ -44,7 +44,6 @@ public class ReportService {
     private final PaymentJpaRepository paymentJpaRepository;
     private final EmiService emiService;
 
-    // What one customer owes or has paid among the EMIs due in the month
     private static final class CustomerMonth {
         BigDecimal expected = BigDecimal.ZERO;
         BigDecimal received = BigDecimal.ZERO;
@@ -52,8 +51,6 @@ public class ReportService {
         boolean pending;
     }
 
-    // Collection performance for the EMIs falling due in a month (YYYY-MM, default this month).
-    // Cancelled finances and waived or cancelled EMIs are ignored.
     @Transactional(readOnly = true)
     public Map<String, Object> monthly(String month) {
         YearMonth ym;
@@ -121,7 +118,6 @@ public class ReportService {
                     continue;
                 }
                 CustomerMonth cm = e.getValue();
-                // The worst state wins: overdue, then pending, then paid
                 if (cm.overdue) {
                     overdueCustomers++;
                 } else if (cm.pending) {
@@ -160,7 +156,6 @@ public class ReportService {
         return result;
     }
 
-    // Share of part in whole, to one decimal place; 0 when there is nothing expected
     private BigDecimal percent(BigDecimal part, BigDecimal whole) {
         if (whole.signum() == 0) {
             return BigDecimal.ZERO.setScale(1);

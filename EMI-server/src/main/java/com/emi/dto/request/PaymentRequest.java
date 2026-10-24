@@ -14,14 +14,12 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-// Money received against a finance. txnId is required for every method except Cash (cheque number for cheques).
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentRequest {
 
-    // The FIN-YYYY-NNNNNN number or the internal id
     @NotBlank(message = "Finance is required")
     private String financeId;
 

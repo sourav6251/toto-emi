@@ -7,9 +7,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// Attaches an uploaded photo to a finance, or replaces the photo of a document it already has.
-// number is optional; when omitted the existing number is kept. It travels in the body because
-// identity numbers must not appear in URLs.
 @Data
 @Builder
 @NoArgsConstructor

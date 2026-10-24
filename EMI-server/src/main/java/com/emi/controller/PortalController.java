@@ -18,7 +18,6 @@ public class PortalController {
 
     private final PortalService portalService;
 
-    // Customer home: profile, loans with next due EMI and payment history, company info, UPI links for QR codes
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> getPortal(@CurrentUserId String userId, Authentication authentication) {

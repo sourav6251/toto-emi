@@ -61,8 +61,6 @@ public class DocumentService {
     public record StoredFile(Resource resource, String mimeType, String fileName) {
     }
 
-    // Stores one photo (JPEG or PNG, up to 5 MB) and returns the id to attach it to a finance with.
-    // The type is read from the image bytes, not trusted from the client's content type or file name.
     @Transactional
     public UploadedFileResponse upload(String userId, MultipartFile file, String key) {
         if (file == null || file.isEmpty()) {
@@ -104,13 +102,11 @@ public class DocumentService {
                     .build());
             return toResponse(saved);
         } catch (RuntimeException e) {
-            // Delete from Cloudinary if database saving fails
             fileStorageService.delete(cloudinaryUrl);
             throw e;
         }
     }
 
-    // Reads a stored photo back from Cloudinary
     @Transactional(readOnly = true)
     public StoredFile load(String id) {
         UploadedFile f = findFile(id)
@@ -124,7 +120,6 @@ public class DocumentService {
         throw new DomainException("File not found", HttpStatus.NOT_FOUND);
     }
 
-    // Deletes an uploaded file by FILE-NNNNNN number or fileId
     @Transactional
     public void delete(String userId, String id) {
         UploadedFile file = findFile(id)
@@ -135,17 +130,13 @@ public class DocumentService {
                     HttpStatus.CONFLICT);
         }
 
-        // 1. Delete from Cloudinary
         fileStorageService.delete(file.getUrl());
 
-        // 2. Remove DB record
         uploadedFileJpaRepository.delete(file);
 
-        // 3. Record audit log
         auditService.log(userId, "Document deleted", file.getFileNumber() + " (" + file.getDocKey() + ")", "");
     }
 
-    // Adds a document to a finance, or replaces its photo. Admin uploads are Verified, staff uploads Pending.
     @Transactional
     public void attach(String userId, boolean isAdmin, String financeId, AttachDocumentRequest request) {
         Finance finance = financeJpaRepository.findByFinanceNumber(financeId.trim())
@@ -193,7 +184,6 @@ public class DocumentService {
                 type.label() + " on " + finance.getFinanceNumber(), finance.getFinanceNumber());
     }
 
-    // Documents of one finance. Without viewing rights only the type, status and date are shown.
     @Transactional(readOnly = true)
     public List<DocumentResponse> forFinance(Finance finance, boolean canView) {
         List<FinanceDocument> docs = financeDocumentJpaRepository.findAllByFinanceId(finance.getFinanceId());
@@ -234,7 +224,6 @@ public class DocumentService {
         }
     }
 
-    // id is the FILE-NNNNNN number or the internal id
     private java.util.Optional<UploadedFile> findFile(String id) {
         return uploadedFileJpaRepository.findByFileNumber(id).or(() -> uploadedFileJpaRepository.findById(id));
     }
@@ -251,7 +240,6 @@ public class DocumentService {
     private record ImageInfo(String mimeType, String extension, int width, int height) {
     }
 
-    // Only JPEG and PNG are accepted, decided from the bytes themselves
     private ImageInfo inspect(byte[] bytes) {
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             Iterator<ImageReader> readers = in == null ? null : ImageIO.getImageReaders(in);
@@ -282,7 +270,6 @@ public class DocumentService {
         }
     }
 
-    // Display name only: drop any path the client sent and keep it short
     private String clientFileName(String original, String fallbackExtension) {
         if (original == null || original.isBlank()) {
             return "document" + fallbackExtension;
@@ -294,7 +281,6 @@ public class DocumentService {
         return name.length() > 200 ? name.substring(name.length() - 200) : name;
     }
 
-    // Identity numbers show only their last 4 characters
     private String mask(String key, String number) {
         if (!DocumentTypes.isIdentity(key)) {
             return number;

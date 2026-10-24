@@ -17,7 +17,6 @@ public interface CustomerJpaRepository extends JpaRepository<Customer, String> {
 
     long countByAssignedStaffId(String assignedStaffId);
 
-    // allCustomers=false limits to the staff member's own customers plus unassigned ones; pattern is a lowercase LIKE pattern
     @Query("""
             select c from Customer c
             where (:allCustomers = true or c.assignedStaffId is null or c.assignedStaffId = :staffId)
