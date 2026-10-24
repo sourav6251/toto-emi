@@ -128,12 +128,21 @@ public class JWTService {
         return generateToken(userId, role, jwtProperties.getJwt().getExpirationMs());
     }
 
-    public String generateToken(String userId, String role, Integer expireTimeMS) {
+    public String generateToken(String userId, String role, long expireTimeMS) {
+        return generateToken(userId, role, Long.valueOf(expireTimeMS));
+    }
+
+    public String generateToken(String userId, String role, Long expireTimeMS) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         return generateToken(userId, claims, expireTimeMS);
     }
-    public String generateToken(String userId, Integer expireTimeMS) {
+
+    public String generateToken(String userId, long expireTimeMS) {
+        return generateToken(userId, Long.valueOf(expireTimeMS));
+    }
+
+    public String generateToken(String userId, Long expireTimeMS) {
         Map<String, Object> claims = new HashMap<>();
 //        claims.put("role", role);
         return generateToken(userId, claims, expireTimeMS);
@@ -146,12 +155,13 @@ public class JWTService {
      * @param expireTimeMS in MS
      * @return
      */
-    public String generateToken(String userId, Map<String, Object> claims, Integer expireTimeMS) {
+    public String generateToken(String userId, Map<String, Object> claims, Long expireTimeMS) {
+        long duration = expireTimeMS != null ? expireTimeMS : 2592000000L;
         return Jwts.builder()
                 .claims(claims)
                 .subject(userId)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expireTimeMS))
+                .expiration(new Date(System.currentTimeMillis() + duration))
                 .signWith(secretKey)
                 .compact();
     }

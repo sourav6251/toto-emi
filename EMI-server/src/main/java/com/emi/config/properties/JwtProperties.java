@@ -19,7 +19,7 @@ public class JwtProperties {
     @Data
     public static class Jwt{
         private String secret;
-        private Integer expirationMs;
+        private Long expirationMs;
     }
 
     @Data
