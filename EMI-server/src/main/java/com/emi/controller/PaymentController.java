@@ -67,7 +67,7 @@ public class PaymentController {
     @PostMapping("/pay")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> payEmi(@Parameter(hidden = true) @CurrentUserId String userID,
-                                    @Valid @RequestBody OnlinePaymentRequest paymentRequest){
+                                    @RequestBody OnlinePaymentRequest paymentRequest){
 
         paymentRequest.setUserID(userID);
         PaymentOrderResponse paymentOrderResponse=paymentService.payEmi(paymentRequest);

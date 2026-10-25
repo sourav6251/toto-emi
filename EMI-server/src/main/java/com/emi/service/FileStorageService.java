@@ -39,7 +39,7 @@ public class FileStorageService {
         try {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(bytes, ObjectUtils.asMap(
                     "folder", folder != null && !folder.isBlank() ? folder : "emi_documents",
-                    "resource_type", "image"
+                    "resource_type", "auto"
             ));
 
             String publicId = (String) uploadResult.get("public_id");

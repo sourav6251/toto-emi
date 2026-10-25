@@ -1,10 +1,7 @@
 package com.emi.model.entity;
 
-import com.emi.utils.enums.ProductType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,9 +38,8 @@ public class Asset {
     @Column(nullable = false, updatable = false)
     private String assetId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private ProductType productType;
+    @Column(nullable = false, length = 50)
+    private String productType;
 
     @Column(nullable = false, length = 150)
     private String productName;

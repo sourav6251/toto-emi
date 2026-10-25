@@ -3,6 +3,8 @@ package com.emi.model.entity;
 
 import com.emi.utils.enums.Role;
 import com.emi.utils.enums.UserStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -54,7 +56,7 @@ public class Users {
     @Column( length = 255)
     private String email;
 
-    // @Jsoni 
+    @JsonIgnore
     private String password;
 
     @Enumerated(EnumType.STRING)
@@ -65,6 +67,7 @@ public class Users {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.PENDING_VERIFICATION;
+    @JsonIgnore
     private String otp;
     private LocalDateTime otpExpire;
     @Builder.Default

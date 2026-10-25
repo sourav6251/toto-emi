@@ -43,18 +43,15 @@ public class JWTAuth extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userId;
+        final String jwt = jwtService.extractAccessToken(request);
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (jwt == null || jwt.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
         try {
-            userId = jwtService.getUserID(jwt);
+            String userId = jwtService.getUserID(jwt);
             String role = jwtService.getRole(jwt);
 
             if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {

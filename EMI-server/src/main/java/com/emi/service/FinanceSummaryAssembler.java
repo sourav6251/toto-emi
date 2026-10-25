@@ -24,7 +24,7 @@ public class FinanceSummaryAssembler {
 
     public Summary assemble(Finance f, Customer customer, String assignedToName, Asset asset,
                             List<EmiInstallment> installments, LocalDate today) {
-        String prodType = asset != null && asset.getProductType() != null ? asset.getProductType().name() : "Other";
+        String prodType = asset != null && asset.getProductType() != null ? asset.getProductType() : "Other";
         var product = new ProductSummaryDto(
                 prodType,
                 asset != null ? asset.getBrand() : null,

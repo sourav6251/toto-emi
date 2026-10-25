@@ -1,7 +1,5 @@
 package com.emi.dto.request;
 
-import com.emi.utils.enums.InterestType;
-import com.emi.utils.enums.ProductType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -38,9 +36,6 @@ public class FinanceCreateRequest {
     @NotNull(message = "Down payment is required")
     @DecimalMin(value = "0.00", message = "Down payment cannot be negative")
     private BigDecimal downPayment;
-
-    // @NotNull(message = "Interest type is required")
-    // private InterestType interestType;
 
     @NotNull(message = "Interest rate is required")
     @DecimalMin(value = "0.00", message = "Interest rate cannot be negative")
@@ -83,8 +78,9 @@ public class FinanceCreateRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class AssetRequest {
-        // @NotNull(message = "Product type is required")
-        // private ProductType productType;
+        @NotBlank(message = "Product type is required")
+        @Size(max = 50, message = "Product type is too long")
+        private String productType;
 
         @NotBlank(message = "Product name is required")
         @Size(max = 150)

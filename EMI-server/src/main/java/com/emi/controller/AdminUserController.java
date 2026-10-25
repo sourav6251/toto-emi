@@ -3,7 +3,6 @@ package com.emi.controller;
 import com.emi.annotation.CurrentUserId;
 import com.emi.dto.request.CreateStaffRequest;
 import com.emi.dto.response.ApiResponse;
-import com.emi.dto.response.CustomerDetailResponse;
 import com.emi.dto.response.ProfileResponse;
 import com.emi.service.AdminUserService;
 import com.emi.utils.enums.Role;
@@ -36,14 +35,6 @@ public class AdminUserController {
     public ResponseEntity<?> createCustomerCare(@Valid @RequestBody CreateStaffRequest request) {
         ProfileResponse user = adminUserService.createCustomerCare(request.getPhoneNumber(), request.getPassword());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", user));
-    }
-
-    @GetMapping("/customers/{customerId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> getCustomerDetails(@CurrentUserId String adminId,
-                                                @PathVariable String customerId) {
-        CustomerDetailResponse details = adminUserService.getCustomerDetails(adminId, customerId);
-        return ResponseEntity.ok(ApiResponse.success().add("data", details));
     }
 
     @GetMapping

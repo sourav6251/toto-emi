@@ -24,17 +24,52 @@ public interface FinanceJpaRepository extends JpaRepository<Finance, String> {
 
     List<Finance> findAllByCustomerIdIn(Collection<String> customerIds);
 
-    // Finance list, every customer's loans, each row as [Finance, Customer, Asset], newest first.
-    // start/end bound f.createdAt and are inclusive/exclusive respectively; either may be null.
     @Query("""
             select f, c, a from Finance f, Customer c, Asset a
             where f.customerId = c.customerId and f.assetId = a.assetId
-              and (:start is null or f.createdAt >= :start)
-              and (:end is null or f.createdAt < :end)
             order by f.createdAt desc
             """)
-    List<Object[]> search(@Param("start") OffsetDateTime start,
-                          @Param("end") OffsetDateTime end);
+    List<Object[]> searchAll();
+
+    @Query("""
+            select f, c, a from Finance f, Customer c, Asset a
+            where f.customerId = c.customerId and f.assetId = a.assetId
+              and f.createdAt >= :start
+            order by f.createdAt desc
+            """)
+    List<Object[]> searchFrom(@Param("start") OffsetDateTime start);
+
+    @Query("""
+            select f, c, a from Finance f, Customer c, Asset a
+            where f.customerId = c.customerId and f.assetId = a.assetId
+              and f.createdAt < :end
+            order by f.createdAt desc
+            """)
+    List<Object[]> searchTo(@Param("end") OffsetDateTime end);
+
+    @Query("""
+            select f, c, a from Finance f, Customer c, Asset a
+            where f.customerId = c.customerId and f.assetId = a.assetId
+              and f.createdAt >= :start
+              and f.createdAt < :end
+            order by f.createdAt desc
+            """)
+    List<Object[]> searchBetween(@Param("start") OffsetDateTime start,
+                                 @Param("end") OffsetDateTime end);
+
+    // Finance list, every customer's loans, each row as [Finance, Customer, Asset], newest first.
+    // start/end bound f.createdAt and are inclusive/exclusive respectively; either may be null.
+    default List<Object[]> search(OffsetDateTime start, OffsetDateTime end) {
+        if (start != null && end != null) {
+            return searchBetween(start, end);
+        } else if (start != null) {
+            return searchFrom(start);
+        } else if (end != null) {
+            return searchTo(end);
+        } else {
+            return searchAll();
+        }
+    }
 
     @Query("""
             select f, c from Finance f, Customer c

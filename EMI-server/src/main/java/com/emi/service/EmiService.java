@@ -146,7 +146,7 @@ public class EmiService {
                     c.getCustomerId(),
                     c.getFullName(),
                     c.getPhoneNumber(),
-                    asset != null && asset.getProductType() != null ? asset.getProductType().name() : "Other",
+                    asset != null && asset.getProductType() != null ? asset.getProductType() : "Other",
                     asset != null ? asset.getVehicleNumber() : null,
                     i.getInstallmentNo(),
                     f.getTenureMonths(),

@@ -86,15 +86,31 @@ public class JWTService {
             }
         }
 
-        // 3. Try cookies (AuthToken, token, jwt)
+        // 2. Try cookies (AuthToken, token, jwt, AccessToken, accessToken)
         Cookie[] cookies = request.getCookies();
+        String[] cookieNames = {"AccessToken", "accessToken", "AuthToken", "token", "jwt"};
         if (cookies != null) {
-            String[] cookieNames = { "AuthToken", "token", "jwt","AccessToken"};
             for (String name : cookieNames) {
                 for (Cookie cookie : cookies) {
-                    if (name.equals(cookie.getName()) && cookie.getValue() != null
+                    if (name.equalsIgnoreCase(cookie.getName()) && cookie.getValue() != null
                             && !cookie.getValue().trim().isEmpty()) {
                         return cookie.getValue().trim();
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback: Parse raw Cookie header if getCookies() is empty
+        String cookieHeader = request.getHeader("Cookie");
+        if (cookieHeader != null && !cookieHeader.isBlank()) {
+            String[] pairs = cookieHeader.split(";");
+            for (String pair : pairs) {
+                String[] parts = pair.trim().split("=", 2);
+                if (parts.length == 2) {
+                    for (String name : cookieNames) {
+                        if (name.equalsIgnoreCase(parts[0].trim()) && !parts[1].trim().isEmpty()) {
+                            return parts[1].trim();
+                        }
                     }
                 }
             }

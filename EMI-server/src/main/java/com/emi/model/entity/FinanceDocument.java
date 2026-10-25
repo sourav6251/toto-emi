@@ -55,6 +55,9 @@ public class FinanceDocument {
     @Column(length = 50)
     private String docNumber;
 
+    @Column(length = 255)
+    private String fileName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private DocumentVerification verification;

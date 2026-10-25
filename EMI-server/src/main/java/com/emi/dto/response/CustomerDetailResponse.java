@@ -5,9 +5,9 @@ import com.emi.utils.enums.FinanceStatus;
 import com.emi.utils.enums.Gender;
 import com.emi.utils.enums.InstallmentStatus;
 import com.emi.utils.enums.InterestType;
-import com.emi.utils.enums.ProductType;
 import com.emi.utils.enums.Role;
 import com.emi.utils.enums.UserStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +26,7 @@ import java.util.List;
 public class CustomerDetailResponse {
     private String id;
     private String customerId;
+    private String userId;
     private String name;
     private String fullName;
     private String mobile;
@@ -56,15 +57,19 @@ public class CustomerDetailResponse {
     private List<String> productTypes;
     private BigDecimal outstanding;
     private BigDecimal overdueAmount;
+    private String aadhaarNumber;
     private String aadhaarMasked;
+    private String panNumber;
     private String panMasked;
+    private String voterIdNumber;
     private String voterMasked;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private List<FinanceSummaryDto> finances;
     private List<FollowupDto> followups;
+    @JsonIgnore
     private CustomerInfo customer;
-    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnore
     private LoginInfo login;
     private List<FinanceInfo> rawFinances;
 
@@ -72,6 +77,7 @@ public class CustomerDetailResponse {
     public CustomerDetailResponse(CustomerInfo customer, LoginInfo login, List<FinanceInfo> rawFinances) {
         this.id = customer != null ? customer.getCustomerId() : null;
         this.customerId = customer != null ? customer.getCustomerId() : null;
+        this.userId = customer != null ? customer.getUserId() : (login != null ? login.getUserId() : null);
         this.name = customer != null ? customer.getFullName() : null;
         this.fullName = customer != null ? customer.getFullName() : null;
         this.mobile = customer != null ? customer.getPhoneNumber() : null;
@@ -102,11 +108,18 @@ public class CustomerDetailResponse {
         this.productTypes = List.of();
         this.outstanding = BigDecimal.ZERO;
         this.overdueAmount = BigDecimal.ZERO;
+        this.aadhaarNumber = customer != null ? customer.getAadhaarNumber() : null;
         this.aadhaarMasked = (customer != null && customer.getAadhaarNumber() != null && !customer.getAadhaarNumber().isBlank())
                 ? (customer.getAadhaarNumber().length() <= 4 ? customer.getAadhaarNumber() : "XXXX XXXX " + customer.getAadhaarNumber().substring(customer.getAadhaarNumber().length() - 4))
                 : null;
-        this.panMasked = null;
-        this.voterMasked = null;
+        this.panNumber = customer != null ? customer.getPanNumber() : null;
+        this.panMasked = (customer != null && customer.getPanNumber() != null && !customer.getPanNumber().isBlank())
+                ? (customer.getPanNumber().trim().length() >= 4 ? "XXXXX" + customer.getPanNumber().trim().substring(customer.getPanNumber().trim().length() - 4) : customer.getPanNumber().trim())
+                : null;
+        this.voterIdNumber = customer != null ? customer.getVoterIdNumber() : null;
+        this.voterMasked = (customer != null && customer.getVoterIdNumber() != null && !customer.getVoterIdNumber().isBlank())
+                ? (customer.getVoterIdNumber().trim().length() >= 4 ? "XXXXXX" + customer.getVoterIdNumber().trim().substring(customer.getVoterIdNumber().trim().length() - 4) : customer.getVoterIdNumber().trim())
+                : null;
         this.createdAt = customer != null ? customer.getCreatedAt() : null;
         this.updatedAt = customer != null ? customer.getUpdatedAt() : null;
         this.finances = List.of();
@@ -264,7 +277,7 @@ public class CustomerDetailResponse {
     @AllArgsConstructor
     public static class AssetInfo {
         private String assetId;
-        private ProductType productType;
+        private String productType;
         private String productName;
         private String brand;
         private String model;

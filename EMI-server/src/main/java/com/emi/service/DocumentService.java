@@ -1,14 +1,19 @@
 package com.emi.service;
 
 import com.emi.dto.request.AttachDocumentRequest;
+import com.emi.dto.request.CustomerDocumentBatchRequest;
+import com.emi.dto.request.UpdateDocumentRequest;
+import com.emi.dto.response.CustomerDocumentResponse;
 import com.emi.dto.response.DocumentResponse;
 import com.emi.dto.response.UploadedFileResponse;
 import com.emi.exception.DomainException;
 import com.emi.model.entity.Customer;
+import com.emi.model.entity.CustomerDocument;
 import com.emi.model.entity.Finance;
 import com.emi.model.entity.FinanceDocument;
 import com.emi.model.entity.UploadedFile;
 import com.emi.model.entity.Users;
+import com.emi.model.reposetory.CustomerDocumentJpaRepository;
 import com.emi.model.reposetory.CustomerJpaRepository;
 import com.emi.model.reposetory.FinanceDocumentJpaRepository;
 import com.emi.model.reposetory.FinanceJpaRepository;
@@ -23,6 +28,8 @@ import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -54,6 +61,7 @@ public class DocumentService {
     private final FinanceDocumentJpaRepository financeDocumentJpaRepository;
     private final FinanceJpaRepository financeJpaRepository;
     private final CustomerJpaRepository customerJpaRepository;
+    private final CustomerDocumentJpaRepository customerDocumentJpaRepository;
     private final UserJpaRepository userJpaRepository;
     private final AuditService auditService;
     private final FileStorageService fileStorageService;
@@ -63,11 +71,15 @@ public class DocumentService {
 
     @Transactional
     public UploadedFileResponse upload(String userId, MultipartFile file, String key) {
+        return upload(userId, file, key, null);
+    }
+
+    @Transactional
+    public UploadedFileResponse upload(String userId, MultipartFile file, String key, String customFileName) {
         if (file == null || file.isEmpty()) {
             throw new DomainException("A file is required", HttpStatus.UNPROCESSABLE_CONTENT);
         }
-        var type = DocumentTypes.find(key)
-                .orElseThrow(() -> new DomainException("Unknown document type", HttpStatus.UNPROCESSABLE_CONTENT));
+        String docKey = (key != null && !key.isBlank()) ? key.trim().toLowerCase() : "document";
         if (file.getSize() > MAX_BYTES) {
             throw new DomainException("File is larger than 5 MB", HttpStatus.CONTENT_TOO_LARGE);
         }
@@ -84,27 +96,75 @@ public class DocumentService {
         FileStorageService.CloudinaryUploadResult cloudResult = fileStorageService.upload(bytes, "emi_documents");
         String cloudinaryUrl = cloudResult.secureUrl();
         String storedName = cloudResult.publicId();
+        deleteOnRollback(cloudinaryUrl);
 
-        try {
-            long sequence = uploadedFileJpaRepository.nextFileNumber();
-            String fileNumber = String.format("FILE-%06d", sequence);
-            UploadedFile saved = uploadedFileJpaRepository.save(UploadedFile.builder()
-                    .fileNumber(fileNumber)
-                    .docKey(type.key())
-                    .fileName(clientFileName(file.getOriginalFilename(), image.extension()))
-                    .storedName(storedName)
-                    .sizeBytes((long) bytes.length)
-                    .width(image.width())
-                    .height(image.height())
-                    .mimeType(image.mimeType())
-                    .url(cloudinaryUrl)
-                    .uploadedBy(userId)
-                    .build());
-            return toResponse(saved);
-        } catch (RuntimeException e) {
-            fileStorageService.delete(cloudinaryUrl);
-            throw e;
+        String rawName = (customFileName != null && !customFileName.isBlank()) ? customFileName.trim() : file.getOriginalFilename();
+        String storedFileName = clientFileName(rawName, image.extension());
+
+        long sequence = uploadedFileJpaRepository.nextFileNumber();
+        String fileNumber = String.format("FILE-%06d", sequence);
+        UploadedFile saved = uploadedFileJpaRepository.save(UploadedFile.builder()
+                .fileNumber(fileNumber)
+                .docKey(docKey)
+                .fileName(storedFileName)
+                .storedName(storedName)
+                .sizeBytes((long) bytes.length)
+                .width(image.width())
+                .height(image.height())
+                .mimeType(image.mimeType())
+                .url(cloudinaryUrl)
+                .uploadedBy(userId)
+                .build());
+        return toResponse(saved);
+    }
+
+    // A file already sent to storage is removed again if the transaction recording it rolls back
+    private void deleteOnRollback(String url) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
         }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    fileStorageService.delete(url);
+                }
+            }
+        });
+    }
+
+    // A replaced file is removed from storage only after the new row commits, and only if no
+    // customer or finance document still points at it (Stage 3 shares files with the finance)
+    private void deleteWhenUnused(String fileId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            String url = unusedFileUrl(fileId);
+            if (url != null) {
+                fileStorageService.delete(url);
+            }
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            private String url;
+
+            @Override
+            public void beforeCommit(boolean readOnly) {
+                url = unusedFileUrl(fileId);
+            }
+
+            @Override
+            public void afterCommit() {
+                if (url != null) {
+                    fileStorageService.delete(url);
+                }
+            }
+        });
+    }
+
+    private String unusedFileUrl(String fileId) {
+        if (customerDocumentJpaRepository.existsByFileId(fileId) || financeDocumentJpaRepository.existsByFileId(fileId)) {
+            return null;
+        }
+        return uploadedFileJpaRepository.findById(fileId).map(UploadedFile::getUrl).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -137,53 +197,6 @@ public class DocumentService {
         auditService.log(userId, "Document deleted", file.getFileNumber() + " (" + file.getDocKey() + ")", "");
     }
 
-    @Transactional
-    public void attach(String userId, boolean isAdmin, String financeId, AttachDocumentRequest request) {
-        Finance finance = financeJpaRepository.findByFinanceNumber(financeId.trim())
-                .or(() -> financeJpaRepository.findById(financeId.trim()))
-                .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
-        Customer customer = customerJpaRepository.findById(finance.getCustomerId())
-                .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
-        if (!isAdmin && customer.getAssignedStaffId() != null && !customer.getAssignedStaffId().equals(userId)) {
-            throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
-        }
-
-        var type = DocumentTypes.find(request.getKey())
-                .orElseThrow(() -> new DomainException("Unknown document type", HttpStatus.UNPROCESSABLE_CONTENT));
-        UploadedFile file = findFile(request.getFileId().trim())
-                .orElseThrow(() -> new DomainException("Unknown file", HttpStatus.UNPROCESSABLE_CONTENT));
-        if (!file.getDocKey().equals(type.key())) {
-            throw new DomainException("This file was uploaded as a different document type",
-                    HttpStatus.UNPROCESSABLE_CONTENT);
-        }
-
-        String number = request.getNumber() == null || request.getNumber().isBlank() ? null : request.getNumber().trim();
-        DocumentVerification verification = isAdmin ? DocumentVerification.VERIFIED : DocumentVerification.PENDING;
-
-        var existing = financeDocumentJpaRepository.findByFinanceIdAndDocKey(finance.getFinanceId(), type.key());
-        boolean replaced = existing.isPresent();
-        if (replaced && existing.get().getFileId() != null && !existing.get().getFileId().equals(file.getFileId())) {
-            String oldFileId = existing.get().getFileId();
-            uploadedFileJpaRepository.findById(oldFileId).ifPresent(oldFile -> {
-                fileStorageService.delete(oldFile.getUrl());
-            });
-        }
-        FinanceDocument doc = existing.orElseGet(() -> FinanceDocument.builder()
-                .financeId(finance.getFinanceId())
-                .docKey(type.key())
-                .build());
-        doc.setFileId(file.getFileId());
-        if (number != null) {
-            doc.setDocNumber(number);
-        }
-        doc.setVerification(verification);
-        doc.setUploadedBy(userId);
-        financeDocumentJpaRepository.save(doc);
-
-        auditService.log(userId, replaced ? "Document replaced" : "Document uploaded",
-                type.label() + " on " + finance.getFinanceNumber(), finance.getFinanceNumber());
-    }
-
     @Transactional(readOnly = true)
     public List<DocumentResponse> forFinance(Finance finance, boolean canView) {
         List<FinanceDocument> docs = financeDocumentJpaRepository.findAllByFinanceId(finance.getFinanceId());
@@ -201,7 +214,7 @@ public class DocumentService {
                 .sorted((a, b) -> Integer.compare(order(a.getDocKey()), order(b.getDocKey())))
                 .map(d -> {
                     UploadedFile f = files.get(d.getFileId());
-                    var type = DocumentTypes.find(d.getDocKey());
+                    java.util.Optional<DocumentTypes.DocType> type = DocumentTypes.find(d.getDocKey());
                     String number = d.getDocNumber() == null ? "" : mask(d.getDocKey(), d.getDocNumber());
                     return new DocumentResponse(
                             d.getDocKey(),
@@ -241,10 +254,18 @@ public class DocumentService {
     }
 
     private ImageInfo inspect(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            throw new DomainException("File is empty", HttpStatus.UNPROCESSABLE_CONTENT);
+        }
+        // PDF magic bytes: %PDF (0x25, 0x50, 0x44, 0x46)
+        if (bytes.length >= 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) {
+            return new ImageInfo("application/pdf", ".pdf", 0, 0);
+        }
+
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             Iterator<ImageReader> readers = in == null ? null : ImageIO.getImageReaders(in);
             if (readers == null || !readers.hasNext()) {
-                throw new DomainException("File must be a JPEG or PNG image", HttpStatus.UNPROCESSABLE_CONTENT);
+                throw new DomainException("File must be a PDF, JPEG, or PNG document", HttpStatus.UNPROCESSABLE_CONTENT);
             }
             ImageReader reader = readers.next();
             try {
@@ -258,7 +279,7 @@ public class DocumentService {
                     mime = "image/png";
                     ext = ".png";
                 } else {
-                    throw new DomainException("File must be a JPEG or PNG image", HttpStatus.UNPROCESSABLE_CONTENT);
+                    throw new DomainException("File must be a PDF, JPEG, or PNG document", HttpStatus.UNPROCESSABLE_CONTENT);
                 }
                 reader.setInput(in);
                 return new ImageInfo(mime, ext, reader.getWidth(0), reader.getHeight(0));
@@ -266,7 +287,7 @@ public class DocumentService {
                 reader.dispose();
             }
         } catch (IOException e) {
-            throw new DomainException("File must be a JPEG or PNG image", HttpStatus.UNPROCESSABLE_CONTENT);
+            throw new DomainException("File must be a PDF, JPEG, or PNG document", HttpStatus.UNPROCESSABLE_CONTENT);
         }
     }
 
@@ -291,7 +312,7 @@ public class DocumentService {
 
     private int order(String key) {
         for (int i = 0; i < DocumentTypes.ALL.size(); i++) {
-            if (DocumentTypes.ALL.get(i).key().equals(key)) {
+            if (DocumentTypes.ALL.get(i).key().equalsIgnoreCase(key)) {
                 return i;
             }
         }
@@ -300,5 +321,200 @@ public class DocumentService {
 
     private String capitalize(String upper) {
         return upper.charAt(0) + upper.substring(1).toLowerCase();
+    }
+
+    @Transactional
+    public CustomerDocumentResponse attachToCustomer(String userId, boolean isAdmin, String customerId, String key, String fileId, String number) {
+        Customer customer = customerJpaRepository.findById(customerId.trim())
+                .or(() -> customerJpaRepository.findByUserId(customerId.trim()))
+                .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
+
+        String docKey = (key != null && !key.isBlank()) ? key.trim().toLowerCase() : "document";
+        UploadedFile file = findFile(fileId.trim())
+                .orElseThrow(() -> new DomainException("Unknown file", HttpStatus.UNPROCESSABLE_CONTENT));
+
+        // For now every upload is verified instantly, whoever uploads it
+        DocumentVerification verification = DocumentVerification.VERIFIED;
+        String docNumber = (number != null && !number.isBlank()) ? number.trim() : null;
+
+        CustomerDocument doc = customerDocumentJpaRepository.findByCustomerIdAndDocKey(customer.getCustomerId(), docKey)
+                .orElseGet(() -> CustomerDocument.builder()
+                        .customerId(customer.getCustomerId())
+                        .docKey(docKey)
+                        .build());
+
+        if (doc.getFileId() != null && !doc.getFileId().equals(file.getFileId())) {
+            deleteWhenUnused(doc.getFileId());
+        }
+
+        doc.setFileId(file.getFileId());
+        doc.setDocNumber(docNumber);
+        doc.setFileName(file.getFileName());
+        doc.setUrl(file.getUrl());
+        doc.setVerification(verification);
+        doc.setUploadedBy(userId);
+
+        CustomerDocument saved = customerDocumentJpaRepository.save(doc);
+        return toCustomerDocumentResponse(saved);
+    }
+
+    @Transactional
+    public List<CustomerDocumentResponse> attachBatchToCustomer(String userId, boolean isAdmin, CustomerDocumentBatchRequest request) {
+        Customer customer = customerJpaRepository.findById(request.getCustomerId().trim())
+                .or(() -> customerJpaRepository.findByUserId(request.getCustomerId().trim()))
+                .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
+
+        List<AttachDocumentRequest> docs = new java.util.ArrayList<>();
+        if (request.getDocuments() != null && !request.getDocuments().isEmpty()) {
+            docs.addAll(request.getDocuments());
+        } else if (request.getFile() != null && !request.getFile().isEmpty()) {
+            docs.add(AttachDocumentRequest.builder()
+                    .key(request.getKey())
+                    .file(request.getFile())
+                    .fileName(request.getFileName())
+                    .build());
+        }
+
+        if (docs.isEmpty()) {
+            throw new DomainException("At least one document file is required", HttpStatus.BAD_REQUEST);
+        }
+
+        List<CustomerDocumentResponse> responses = new java.util.ArrayList<>();
+        for (AttachDocumentRequest doc : docs) {
+            if (doc.getFile() == null || doc.getFile().isEmpty()) {
+                throw new DomainException("File is required for " + doc.getKey(), HttpStatus.BAD_REQUEST);
+            }
+            UploadedFileResponse uploaded = upload(userId, doc.getFile(), doc.getKey(), doc.getFileName());
+            CustomerDocumentResponse res = attachToCustomer(userId, isAdmin, customer.getCustomerId(), doc.getKey(), uploaded.getId(), null);
+            responses.add(res);
+        }
+        return responses;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerDocumentResponse> getCustomerDocuments(String customerId) {
+        return customerDocumentJpaRepository.findAllByCustomerId(customerId).stream()
+                .map(this::toCustomerDocumentResponse)
+                .toList();
+    }
+
+    private CustomerDocumentResponse toCustomerDocumentResponse(CustomerDocument doc) {
+        return CustomerDocumentResponse.builder()
+                .id(doc.getId())
+                .customerId(doc.getCustomerId())
+                .docKey(doc.getDocKey())
+                .fileId(doc.getFileId())
+                .docNumber(doc.getDocNumber())
+                .fileName(doc.getFileName())
+                .url(doc.getUrl())
+                .verification(doc.getVerification())
+                .uploadedAt(doc.getCreatedAt())
+                .build();
+    }
+
+    @Transactional
+    public Object updateDocumentWithFile(String staffId, boolean isAdmin, String id, MultipartFile file, String key, String number) {
+        if (file == null || file.isEmpty()) {
+            throw new DomainException("File is required", HttpStatus.BAD_REQUEST);
+        }
+        UploadedFileResponse uploaded = upload(staffId, file, key);
+        UpdateDocumentRequest request = new UpdateDocumentRequest(key, uploaded.getId(), number);
+        return updateDocument(staffId, isAdmin, id, request);
+    }
+
+    @Transactional
+    public Object updateDocument(String staffId, boolean isAdmin, String id, UpdateDocumentRequest request) {
+        String trimmedId = id != null ? id.trim() : "";
+        String docKey = (request.getKey() != null && !request.getKey().isBlank()) ? request.getKey().trim().toLowerCase() : "document";
+        String docLabel = DocumentTypes.find(docKey).map(DocumentTypes.DocType::label).orElse(docKey);
+        UploadedFile newFile = findFile(request.getFileId().trim())
+                .orElseThrow(() -> new DomainException("Unknown file", HttpStatus.UNPROCESSABLE_CONTENT));
+
+        // For now every upload is verified instantly, whoever uploads it
+        DocumentVerification verification = DocumentVerification.VERIFIED;
+        String docNumber = (request.getNumber() != null && !request.getNumber().isBlank()) ? request.getNumber().trim() : null;
+
+        // Check if id corresponds to an existing Finance agreement
+        java.util.Optional<Finance> financeOpt = financeJpaRepository.findByFinanceNumber(trimmedId)
+                .or(() -> financeJpaRepository.findById(trimmedId));
+
+        if (financeOpt.isPresent()) {
+            Finance finance = financeOpt.get();
+            Customer customer = customerJpaRepository.findById(finance.getCustomerId())
+                    .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
+//            if (!isAdmin && customer.getAssignedStaffId() != null && !customer.getAssignedStaffId().equals(staffId)) {
+//                throw new DomainException("Finance is not assigned to you", HttpStatus.FORBIDDEN);
+//            }
+
+            java.util.Optional<FinanceDocument> existingOpt = financeDocumentJpaRepository.findByFinanceIdAndDocKey(finance.getFinanceId(), docKey);
+            boolean replaced = existingOpt.isPresent();
+            if (replaced && existingOpt.get().getFileId() != null && !existingOpt.get().getFileId().equals(newFile.getFileId())) {
+                deleteWhenUnused(existingOpt.get().getFileId());
+            }
+
+            FinanceDocument fd = existingOpt.orElseGet(() -> FinanceDocument.builder()
+                    .financeId(finance.getFinanceId())
+                    .docKey(docKey)
+                    .build());
+            fd.setCustomerId(customer.getCustomerId());
+            fd.setFileId(newFile.getFileId());
+            if (docNumber != null) {
+                fd.setDocNumber(docNumber);
+            }
+            fd.setFileName(newFile.getFileName());
+            fd.setVerification(verification);
+            fd.setUploadedBy(staffId);
+            financeDocumentJpaRepository.save(fd);
+
+            // Also keep customer_documents in sync
+            updateCustomerDocumentRow(customer.getCustomerId(), docKey, newFile, docNumber, verification, staffId);
+
+            auditService.log(staffId, replaced ? "Document updated" : "Document attached",
+                    docLabel + " on " + finance.getFinanceNumber(), finance.getFinanceNumber());
+
+            return forFinance(finance, true);
+        }
+
+        // Check if id corresponds to a Customer (e.g. before finance is created)
+        java.util.Optional<Customer> customerOpt = customerJpaRepository.findById(trimmedId)
+                .or(() -> customerJpaRepository.findByUserId(trimmedId));
+
+        if (customerOpt.isPresent()) {
+            Customer customer = customerOpt.get();
+//            if (!isAdmin && customer.getAssignedStaffId() != null && !customer.getAssignedStaffId().equals(staffId)) {
+//                throw new DomainException("Customer is not assigned to you", HttpStatus.FORBIDDEN);
+//            }
+
+            CustomerDocument savedCd = updateCustomerDocumentRow(customer.getCustomerId(), docKey, newFile, docNumber, verification, staffId);
+
+            auditService.log(staffId, "Document updated",
+                    docLabel + " for customer " + (customer.getFullName() != null ? customer.getFullName() : customer.getPhoneNumber()),
+                    customer.getCustomerId());
+
+            return toCustomerDocumentResponse(savedCd);
+        }
+
+        throw new DomainException("Customer or Finance not found with id: " + id, HttpStatus.NOT_FOUND);
+    }
+
+    private CustomerDocument updateCustomerDocumentRow(String customerId, String docKey, UploadedFile file, String docNumber, DocumentVerification verification, String staffId) {
+        java.util.Optional<CustomerDocument> existingOpt = customerDocumentJpaRepository.findByCustomerIdAndDocKey(customerId, docKey);
+        if (existingOpt.isPresent() && existingOpt.get().getFileId() != null && !existingOpt.get().getFileId().equals(file.getFileId())) {
+            deleteWhenUnused(existingOpt.get().getFileId());
+        }
+
+        CustomerDocument cd = existingOpt.orElseGet(() -> CustomerDocument.builder()
+                .customerId(customerId)
+                .docKey(docKey)
+                .build());
+        cd.setFileId(file.getFileId());
+        if (docNumber != null) {
+            cd.setDocNumber(docNumber);
+        }
+        cd.setFileName(file.getFileName());
+        cd.setUrl(file.getUrl());
+        cd.setVerification(verification);
+        cd.setUploadedBy(staffId);
+        return customerDocumentJpaRepository.save(cd);
     }
 }

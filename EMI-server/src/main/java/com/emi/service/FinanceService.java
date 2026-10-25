@@ -20,16 +20,21 @@ import com.emi.dto.response.CustomerDetailResponse.InstallmentInfo;
 import com.emi.exception.DomainException;
 import com.emi.model.entity.Asset;
 import com.emi.model.entity.Customer;
+import com.emi.model.entity.CustomerDocument;
 import com.emi.model.entity.EmiInstallment;
 import com.emi.model.entity.Finance;
+import com.emi.model.entity.FinanceDocument;
 import com.emi.model.reposetory.AssetJpaRepository;
+import com.emi.model.reposetory.CustomerDocumentJpaRepository;
 import com.emi.model.reposetory.CustomerJpaRepository;
 import com.emi.model.reposetory.EmiInstallmentJpaRepository;
+import com.emi.model.reposetory.FinanceDocumentJpaRepository;
 import com.emi.model.reposetory.FinanceJpaRepository;
 import com.emi.utils.DoNumbers;
 import com.emi.utils.EmiCalculator;
 import com.emi.utils.enums.CustomerStatus;
 import com.emi.utils.enums.FinanceStatus;
+import com.emi.utils.enums.InterestType;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -57,6 +62,8 @@ public class FinanceService {
     private final CompanyProperties companyProperties;
     private final PaymentService paymentService;
     private final DocumentService documentService;
+    private final CustomerDocumentJpaRepository customerDocumentJpaRepository;
+    private final FinanceDocumentJpaRepository financeDocumentJpaRepository;
     private final AuditService auditService;
 
     private static final String DO_NUMBER_INVALID =
@@ -90,16 +97,16 @@ public class FinanceService {
         Customer c = customerJpaRepository.findById(f.getCustomerId())
                 .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
 
-        boolean isAdmin = hasRole(authentication, "ROLE_ADMIN");
-        boolean isCare = hasRole(authentication, "ROLE_CUSTOMER_CARE");
-        if (isAdmin) {
-        } else if (isCare) {
-            if (c.getAssignedStaffId() != null && !c.getAssignedStaffId().equals(callerId)) {
-                throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
-            }
-        } else if (c.getUserId() == null || !c.getUserId().equals(callerId)) {
-            throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
-        }
+//        boolean isAdmin = hasRole(authentication, "ROLE_ADMIN");
+//        boolean isCare = hasRole(authentication, "ROLE_CUSTOMER_CARE");
+//        if (isAdmin) {
+//        } else if (isCare) {
+//            if (c.getAssignedStaffId() != null && !c.getAssignedStaffId().equals(callerId)) {
+//                throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
+//            }
+//        } else if (c.getUserId() == null || !c.getUserId().equals(callerId)) {
+//            throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
+//        }
 
         Asset asset = assetJpaRepository.findById(f.getAssetId()).orElse(null);
         List<EmiInstallment> installments = emiInstallmentJpaRepository
@@ -125,8 +132,8 @@ public class FinanceService {
                     i.getInstallmentNo(),
                     i.getDueDate(),
                     i.getEmiAmount(),
-                    isAdmin ? i.getPrincipalAmount() : null,
-                    isAdmin ? i.getInterestAmount() : null,
+                    i.getPrincipalAmount() ,
+                     i.getInterestAmount() ,
                     i.getAmountPaid(),
                     i.getPaidAt(),
                     status,
@@ -136,7 +143,7 @@ public class FinanceService {
         }
 
         FinanceDetailResponse.ProductDetail product = asset == null ? null : new FinanceDetailResponse.ProductDetail(
-                asset.getProductType() != null ? asset.getProductType().name() : "Other",
+                asset.getProductType() != null ? asset.getProductType() : "Other",
                 asset.getProductName(),
                 asset.getBrand(),
                 asset.getModel(),
@@ -181,11 +188,11 @@ public class FinanceService {
                 .price(f.getProductPrice())
                 .downPayment(f.getDownPayment())
                 .totalPayable(f.getTotalPayable())
-                .rate(isAdmin ? f.getInterestRate() : null)
-                .interestType(isAdmin ? f.getInterestType() : null)
-                .totalInterest(isAdmin ? f.getTotalInterest() : null)
-                .processingFee(isAdmin ? f.getProcessingFee() : null)
-                .otherCharges(isAdmin ? f.getOtherCharges() : null)
+                .rate(f.getInterestRate())
+                .interestType(f.getInterestType())
+                .totalInterest(f.getTotalInterest())
+                .processingFee(f.getProcessingFee() )
+                .otherCharges(f.getOtherCharges() )
                 .firstEmiDate(f.getFirstEmiDate())
                 .dueDay(f.getEmiDueDay())
                 .graceDays(f.getGraceDays())
@@ -197,9 +204,9 @@ public class FinanceService {
                 .customer(new FinanceDetailResponse.CustomerBrief(c.getCustomerId(), c.getFullName(),
                         c.getPhoneNumber(), c.getAlternatePhoneNumber(), c.getVillage(), c.getDistrict(), aadhaarMasked))
                 .schedule(schedule)
-                .payments(paymentService.forFinance(f, c, !isAdmin && !isCare))
-                .documents(documentService.forFinance(f, isAdmin || isCare))
-                .canUploadDocs(isAdmin || isCare)
+                .payments(paymentService.forFinance(f, c, false))
+                .documents(documentService.forFinance(f, true))
+                .canUploadDocs(true)
                 .followups(List.of())
                 .upi(companyProperties.getUpi())
                 .companyName(companyProperties.getName())
@@ -267,15 +274,16 @@ public class FinanceService {
     }
 
     @Transactional
-    public FinanceInfo createFinance(String staffId, boolean isAdmin, FinanceCreateRequest request) {
+    public FinanceInfo createFinance(String staffId, FinanceCreateRequest request) {
         Customer customer = customerJpaRepository.findById(request.getCustomerId())
+                .or(() -> customerJpaRepository.findByUserId(request.getCustomerId()))
                 .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
             throw new DomainException("Customer is not active");
         }
-        if (!isAdmin && customer.getAssignedStaffId() != null && !customer.getAssignedStaffId().equals(staffId)) {
-            throw new DomainException("Customer is not assigned to you", HttpStatus.FORBIDDEN);
-        }
+//        if (!isAdmin && customer.getAssignedStaffId() != null && !customer.getAssignedStaffId().equals(staffId)) {
+//            throw new DomainException("Customer is not assigned to you", HttpStatus.FORBIDDEN);
+//        }
         if (request.getDownPayment().compareTo(request.getProductPrice()) >= 0) {
             throw new DomainException("Down payment must be less than the product price");
         }
@@ -296,7 +304,7 @@ public class FinanceService {
 
         FinanceCreateRequest.AssetRequest a = request.getAsset();
         Asset asset = assetJpaRepository.save(Asset.builder()
-//                .productType(a.getProductType())
+                .productType(a.getProductType().trim())
                 .productName(a.getProductName().trim())
                 .brand(a.getBrand())
                 .model(a.getModel())
@@ -321,7 +329,7 @@ public class FinanceService {
                 .productPrice(request.getProductPrice())
                 .downPayment(request.getDownPayment())
                 .financeAmount(financeAmount)
-//                .interestType(request.getInterestType())
+                .interestType(InterestType.FLAT)
                 .interestRate(request.getInterestRate())
                 .tenureMonths(request.getTenureMonths())
                 .emiAmount(plan.emi())
@@ -338,6 +346,22 @@ public class FinanceService {
                 .remarks(request.getRemarks())
                 .createdBy(staffId)
                 .build());
+
+        List<CustomerDocument> stagedDocs = customerDocumentJpaRepository.findAllByCustomerId(customer.getCustomerId());
+        for (CustomerDocument stagedDoc : stagedDocs) {
+            FinanceDocument fd = financeDocumentJpaRepository.findByFinanceIdAndDocKey(finance.getFinanceId(), stagedDoc.getDocKey())
+                    .orElseGet(() -> FinanceDocument.builder()
+                            .financeId(finance.getFinanceId())
+                            .docKey(stagedDoc.getDocKey())
+                            .build());
+            fd.setCustomerId(customer.getCustomerId());
+            fd.setFileId(stagedDoc.getFileId());
+            fd.setDocNumber(stagedDoc.getDocNumber());
+            fd.setFileName(stagedDoc.getFileName());
+            fd.setVerification(stagedDoc.getVerification());
+            fd.setUploadedBy(staffId);
+            financeDocumentJpaRepository.save(fd);
+        }
 
         List<EmiInstallment> installments = new ArrayList<>();
         for (EmiCalculator.Row row : plan.rows()) {

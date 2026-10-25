@@ -32,13 +32,13 @@ public class DocumentController {
     public ResponseEntity<?> uploadDocument(@CurrentUserId String userId,
                                             @RequestParam(value = "file", required = false) MultipartFile file,
                                             @RequestParam(value = "key") String key) {
-        var uploaded = documentService.upload(userId, file, key);
+        com.emi.dto.response.UploadedFileResponse uploaded = documentService.upload(userId, file, key);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", uploaded));
     }
 
     @GetMapping("/documents/{id}/file")
     public ResponseEntity<?> getDocumentFile(@PathVariable("id") String id) {
-        var stored = documentService.load(id);
+        com.emi.service.DocumentService.StoredFile stored = documentService.load(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(stored.mimeType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")

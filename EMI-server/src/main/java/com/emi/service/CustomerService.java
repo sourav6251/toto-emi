@@ -3,7 +3,6 @@ package com.emi.service;
 import com.emi.dto.request.CustomerProfileRequest;
 import com.emi.dto.request.WalkInCustomerRequest;
 import com.emi.dto.response.CustomerDetailResponse;
-import com.emi.dto.response.CustomerListItem;
 import com.emi.dto.response.CustomerResponse;
 import com.emi.exception.DomainException;
 import com.emi.model.entity.Asset;
@@ -19,12 +18,10 @@ import com.emi.model.reposetory.UserJpaRepository;
 import com.emi.utils.enums.CustomerStatus;
 import com.emi.utils.enums.FinanceStatus;
 import com.emi.utils.enums.InstallmentStatus;
+import com.emi.utils.enums.Role;
 import com.emi.utils.enums.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -36,6 +33,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -75,15 +73,47 @@ public class CustomerService {
 
     @Transactional
     public CustomerResponse createWalkIn(String staffId, boolean assignToStaff, CustomerProfileRequest request) {
+        String phoneNumber = request.getPhoneNumber() != null ? request.getPhoneNumber().trim() : null;
+        String fullName = request.getFullName() != null ? request.getFullName().trim() : null;
+        String email = request.getEmail() != null && !request.getEmail().isBlank()
+                ? request.getEmail().trim().toLowerCase(Locale.ROOT)
+                : null;
 
-
-        if (request.getFullName() != null
-                && customerJpaRepository.existsByPhoneNumberAndFullName(request.getPhoneNumber(), request.getFullName())) {
-            throw new DomainException("A customer with this phone number and name already exists", HttpStatus.CONFLICT);
+        if (customerJpaRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new DomainException("A customer profile already exists for this phone number", HttpStatus.CONFLICT);
         }
+        
+        Users user = userJpaRepository.findByPhoneNumber(phoneNumber).orElse(null);
+        if (user != null) {
+            if (user.getRole() == Role.ADMIN || user.getRole() == Role.CUSTOMER_CARE) {
+                throw new DomainException("This phone number belongs to a staff account", HttpStatus.CONFLICT);
+            }
+            if (customerJpaRepository.findByUserId(user.getUserID()).isPresent()) {
+                throw new DomainException("A customer profile already exists for this phone number", HttpStatus.CONFLICT);
+            }
+            // Leftover user from an unfinished app sign-up (OTP requested, never registered): reuse it
+            if (fullName != null) {
+                user.setFullName(fullName);
+            }
+            if (email != null) {
+                user.setEmail(email);
+            }
+            user.setRole(Role.CUSTOMER);
+            user.setStatus(UserStatus.ACTIVE);
+        } else {
+            user = Users.builder()
+                    .phoneNumber(phoneNumber)
+                    .fullName(fullName)
+                    .email(email)
+                    .role(Role.CUSTOMER)
+                    .status(UserStatus.ACTIVE)
+                    .build();
+        }
+        Users savedUser = userJpaRepository.save(user);
 
         Customer customer = profileFields(request)
-                .phoneNumber(request.getPhoneNumber())
+                .phoneNumber(phoneNumber)
+                .userId(savedUser.getUserID())
                 .assignedStaffId(assignToStaff ? staffId : null)
                 .status(CustomerStatus.ACTIVE)
                 .createdBy(staffId)
@@ -92,58 +122,45 @@ public class CustomerService {
         return toResponse(customerJpaRepository.save(customer));
     }
 
+    @Transactional
+    public CustomerResponse createOrUpdateWalkIn(String staffId, boolean assignToStaff, CustomerProfileRequest request) {
+        String phoneNumber = request.getPhoneNumber() != null ? request.getPhoneNumber().trim() : null;
+        Customer existing = customerJpaRepository.findByPhoneNumber(phoneNumber).orElse(null);
+        if (existing != null) {
+            applyProfileFields(existing, request);
+            return toResponse(customerJpaRepository.save(existing));
+        }
+        return createWalkIn(staffId, assignToStaff, request);
+    }
+
+    private void applyProfileFields(Customer c, CustomerProfileRequest request) {
+        if (request.getFullName() != null) c.setFullName(request.getFullName().trim());
+        if (request.getGuardianName() != null) c.setGuardianName(request.getGuardianName().trim());
+        if (request.getDateOfBirth() != null) c.setDateOfBirth(request.getDateOfBirth());
+        if (request.getGender() != null) c.setGender(request.getGender());
+        if (request.getAlternatePhoneNumber() != null) c.setAlternatePhoneNumber(request.getAlternatePhoneNumber().trim());
+        if (request.getEmail() != null) c.setEmail(request.getEmail().trim().toLowerCase(Locale.ROOT));
+        if (request.getAddressLine() != null) c.setAddressLine(request.getAddressLine().trim());
+        if (request.getVillage() != null) c.setVillage(request.getVillage().trim());
+        if (request.getPostOffice() != null) c.setPostOffice(request.getPostOffice().trim());
+        if (request.getPoliceStation() != null) c.setPoliceStation(request.getPoliceStation().trim());
+        if (request.getDistrict() != null) c.setDistrict(request.getDistrict().trim());
+        if (request.getState() != null) c.setState(request.getState().trim());
+        if (request.getPinCode() != null) c.setPinCode(request.getPinCode().trim());
+        if (request.getAadhaarNumber() != null && !request.getAadhaarNumber().isBlank()) {
+            c.setAadhaarNumber(request.getAadhaarNumber().trim());
+        }
+        if (request.getPanNumber() != null) c.setPanNumber(request.getPanNumber().trim());
+        if (request.getVoterIdNumber() != null) c.setVoterIdNumber(request.getVoterIdNumber().trim());
+    }
+
     @Transactional(readOnly = true)
-    public Page<CustomerListItem> listCustomers(String callerId, boolean isAdmin, String search, int page, int size) {
-        String pattern = "%" + (search == null ? "" : search.trim().toLowerCase()) + "%";
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Customer> customers = customerJpaRepository.search(isAdmin, callerId, pattern, pageable);
+    public CustomerDetailResponse getCustomerDetail(String id) {
+        Customer customer = customerJpaRepository.findByUserId(id)
+                .or(() -> customerJpaRepository.findById(id))
+                .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
 
-        List<String> customerIds = customers.getContent().stream().map(Customer::getCustomerId).toList();
-        Map<String, List<Finance>> financesByCustomer = customerIds.isEmpty() ? Map.of()
-                : financeJpaRepository.findAllByCustomerIdIn(customerIds).stream()
-                        .collect(Collectors.groupingBy(Finance::getCustomerId));
-
-        List<String> financeIds = financesByCustomer.values().stream()
-                .flatMap(List::stream).map(Finance::getFinanceId).toList();
-        Map<String, List<EmiInstallment>> installmentsByFinance = financeIds.isEmpty() ? Map.of()
-                : emiInstallmentJpaRepository.findAllByFinanceIdIn(financeIds).stream()
-                        .collect(Collectors.groupingBy(EmiInstallment::getFinanceId));
-
-        return customers.map(c -> {
-            List<Finance> finances = financesByCustomer.getOrDefault(c.getCustomerId(), List.of());
-            List<Finance> live = finances.stream().filter(f -> f.getStatus() != FinanceStatus.CANCELLED).toList();
-
-            Integer tenure = live.stream()
-                    .max(Comparator.comparing(Finance::getCreatedAt))
-                    .map(Finance::getTenureMonths)
-                    .orElse(null);
-
-            BigDecimal outstanding = BigDecimal.ZERO;
-            LocalDate nextDueDate = null;
-            for (Finance f : live) {
-                List<EmiInstallment> installments = installmentsByFinance.getOrDefault(f.getFinanceId(), List.of());
-                BigDecimal paid = installments.stream()
-                        .map(i -> i.getAmountPaid() != null ? i.getAmountPaid() : BigDecimal.ZERO)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal totalPayable = f.getTotalPayable() != null ? f.getTotalPayable() : BigDecimal.ZERO;
-                outstanding = outstanding.add(totalPayable.subtract(paid).max(BigDecimal.ZERO));
-
-                if (f.getStatus() == FinanceStatus.ACTIVE) {
-                    for (EmiInstallment i : installments) {
-                        boolean unpaid = i.getStatus() == InstallmentStatus.PENDING
-                                || i.getStatus() == InstallmentStatus.PARTIALLY_PAID;
-                        if (unpaid && i.getDueDate() != null
-                                && (nextDueDate == null || i.getDueDate().isBefore(nextDueDate))) {
-                            nextDueDate = i.getDueDate();
-                        }
-                    }
-                }
-            }
-
-            return new CustomerListItem(c.getCustomerId(), c.getFullName(), c.getPhoneNumber(), c.getStatus(),
-                    finances.size(), tenure, outstanding, nextDueDate);
-        });
+        return buildCustomerDetail(customer);
     }
 
     @Transactional(readOnly = true)
@@ -152,8 +169,6 @@ public class CustomerService {
                 .or(() -> customerJpaRepository.findByUserId(customerId))
                 .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
 
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isCare = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER_CARE"));
         boolean isCustomer = authentication.getAuthorities().stream()
@@ -169,6 +184,26 @@ public class CustomerService {
             }
         }
 
+        return buildCustomerDetail(customer);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Users> searchCustomerByMobileNo(String mobileNo) {
+        if (mobileNo == null || mobileNo.trim().length() < 3) {
+            throw new DomainException("Search query must be at least 3 digits", HttpStatus.BAD_REQUEST);
+        }
+        String pattern = mobileNo.trim();
+        if (pattern.startsWith("+91")) {
+            pattern = pattern.substring(3).trim();
+        }
+        if (pattern.length() < 3) {
+            throw new DomainException("Search query must be at least 3 digits", HttpStatus.BAD_REQUEST);
+        }
+
+        return userJpaRepository.searchByPhoneOrName(pattern);
+    }
+
+    private CustomerDetailResponse buildCustomerDetail(Customer customer) {
         String assignedToName = "Unassigned";
         if (customer.getAssignedStaffId() != null) {
             assignedToName = userJpaRepository.findById(customer.getAssignedStaffId())
@@ -176,20 +211,18 @@ public class CustomerService {
                     .orElse("Unassigned");
         }
 
-        // Identity masking based on role (Aadhaar masked for all; PAN masked for Admin & Customer self; Voter ID for Admin only)
+        String aadhaarNumber = customer.getAadhaarNumber();
         String aadhaarMasked = customer.getAadhaarMasked();
 
-        String panMasked = null;
-        if (customer.getPanNumber() != null && (isAdmin || isCustomer)) {
-            String pan = customer.getPanNumber().trim();
-            panMasked = pan.length() >= 4 ? "XXXXX" + pan.substring(pan.length() - 4) : "XXXXX";
-        }
+        String panNumber = customer.getPanNumber();
+        String panMasked = (panNumber != null && !panNumber.isBlank())
+                ? (panNumber.trim().length() >= 4 ? "XXXXX" + panNumber.trim().substring(panNumber.trim().length() - 4) : panNumber.trim())
+                : null;
 
-        String voterMasked = null;
-        if (customer.getVoterIdNumber() != null && isAdmin) {
-            String voter = customer.getVoterIdNumber().trim();
-            voterMasked = voter.length() >= 4 ? "XXXXXX" + voter.substring(voter.length() - 4) : "XXXXXX";
-        }
+        String voterIdNumber = customer.getVoterIdNumber();
+        String voterMasked = (voterIdNumber != null && !voterIdNumber.isBlank())
+                ? (voterIdNumber.trim().length() >= 4 ? "XXXXXX" + voterIdNumber.trim().substring(voterIdNumber.trim().length() - 4) : voterIdNumber.trim())
+                : null;
 
         List<Finance> financeEntities = financeJpaRepository.findAllByCustomerId(customer.getCustomerId());
         LocalDate today = LocalDate.now();
@@ -206,7 +239,7 @@ public class CustomerService {
             List<EmiInstallment> installments = emiInstallmentJpaRepository
                     .findAllByFinanceIdOrderByInstallmentNo(f.getFinanceId());
 
-            var summary = financeSummaryAssembler.assemble(f, customer, assignedToName, asset, installments, today);
+            FinanceSummaryAssembler.Summary summary = financeSummaryAssembler.assemble(f, customer, assignedToName, asset, installments, today);
             finances.add(summary.dto());
             if (!productTypes.contains(summary.dto().getProduct().getType())) {
                 productTypes.add(summary.dto().getProduct().getType());
@@ -217,7 +250,7 @@ public class CustomerService {
 
         CustomerStatus customerStatus = customer.getStatus() != null ? customer.getStatus() : CustomerStatus.ACTIVE;
 
-        var customerInfo = new CustomerDetailResponse.CustomerInfo(
+        CustomerDetailResponse.CustomerInfo customerInfo = new CustomerDetailResponse.CustomerInfo(
                 customer.getCustomerId(),
                 customer.getFullName(),
                 customer.getGuardianName(),
@@ -247,6 +280,7 @@ public class CustomerService {
         return new CustomerDetailResponse(
                 customer.getCustomerId(),
                 customer.getCustomerId(),
+                customer.getUserId(),
                 customer.getFullName(),
                 customer.getFullName(),
                 customer.getPhoneNumber(),
@@ -268,7 +302,7 @@ public class CustomerService {
                 customer.getDateOfBirth(),
                 customer.getGuardianName(),
                 customer.getGuardianName(),
-                "Father",
+                "Unknown",
                 customer.getAssignedStaffId(),
                 customer.getAssignedStaffId(),
                 assignedToName,
@@ -277,8 +311,11 @@ public class CustomerService {
                 productTypes,
                 totalOutstanding,
                 totalOverdue,
+                aadhaarNumber,
                 aadhaarMasked,
+                panNumber,
                 panMasked,
+                voterIdNumber,
                 voterMasked,
                 customer.getCreatedAt(),
                 customer.getUpdatedAt(),
