@@ -397,6 +397,18 @@ public class DocumentService {
         }
     }
 
+    @Transactional
+    public List<CustomerDocumentResponse> attachBatchToCustomer(String userId, boolean isAdmin, CustomerDocumentBatchRequest request) {
+        PreparedDocumentBatch batch = prepareBatchForCustomer(request);
+        List<CustomerDocumentResponse> responses = new ArrayList<>();
+        for (AttachDocumentRequest doc : batch.documents()) {
+            UploadedFileResponse uploaded = upload(userId, doc.getFile(), doc.getKey(), doc.getFileName());
+            CustomerDocumentResponse res = attachToCustomer(userId, isAdmin, batch.customerId(), doc.getKey(), uploaded.getId(), null);
+            responses.add(res);
+        }
+        return responses;
+    }
+
     @Transactional(readOnly = true)
     public List<CustomerDocumentResponse> getCustomerDocuments(String customerId) {
         return customerDocumentJpaRepository.findAllByCustomerId(customerId).stream()
