@@ -287,9 +287,6 @@ public class FinanceService {
         if (request.getDownPayment().compareTo(request.getProductPrice()) >= 0) {
             throw new DomainException("Down payment must be less than the product price");
         }
-        if (request.getFirstEmiDate().getDayOfMonth() > 28) {
-            throw new DomainException("First EMI date must fall on day 1 to 28 of the month");
-        }
         String doNumber = DoNumbers.clean(request.getDoNumber());
         if (!DoNumbers.isValid(doNumber)) {
             throw new DomainException(DO_NUMBER_INVALID);

@@ -83,15 +83,18 @@ public class FinanceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", customer));
     }
 
-    // Stage 2: Upload and attach raw document files for this customer
+    // Stage 2: Upload and attach raw document files for this customer. Uploads run in the background
+    // (can be several large files); poll stage2GetDocuments below to see them land.
     @PostMapping(value = "/stage2-documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> stage2AttachDocuments(@CurrentUserId String staffId,
                                                    @CurrentUserRole Role role,
                                                    @Valid @ModelAttribute CustomerDocumentBatchRequest request) {
         boolean isAdmin = role == Role.ADMIN;
-        List<CustomerDocumentResponse> docs = documentService.attachBatchToCustomer(staffId, isAdmin, request);
-        return ResponseEntity.ok(ApiResponse.success().add("data", docs));
+        DocumentService.PreparedDocumentBatch batch = documentService.prepareBatchForCustomer(request);
+        documentService.attachBatchToCustomerAsync(staffId, isAdmin, batch.customerId(), batch.documents());
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success().add("message", "Document upload started"));
     }
 
     // Stage 2 (Lookup): View all uploaded documents staged for this customer

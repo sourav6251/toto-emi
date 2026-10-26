@@ -1,12 +1,15 @@
 package com.emi.controller;
 
 import com.emi.annotation.CurrentUserId;
+import com.emi.annotation.CurrentUserRole;
 import com.emi.dto.request.OnlinePaymentRequest;
 import com.emi.dto.request.PaymentFilterRequest;
 import com.emi.dto.request.PaymentRequest;
 import com.emi.dto.response.ApiResponse;
 import com.emi.dto.response.PaymentOrderResponse;
 import com.emi.service.PaymentService;
+import com.emi.utils.enums.Role;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+
 
 @Tag(name = "Payment Management", description = "APIs for loan payments, manual collections, online Cashfree checkout, AutoPay mandates, and verification")
 @RestController
@@ -35,9 +39,9 @@ public class PaymentController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> recordPayment(@Parameter(hidden = true) @CurrentUserId String staffId,
-                                           @Parameter(hidden = true) Authentication authentication,
+                                           @Parameter(hidden = true) @CurrentUserRole Role role,
                                            @Valid @RequestBody PaymentRequest request) {
-        boolean isAdmin = isAdmin(authentication);
+        boolean isAdmin = role == Role.ADMIN;
         var payment = paymentService.record(staffId, isAdmin, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", payment));
     }

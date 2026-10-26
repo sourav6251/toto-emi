@@ -6,9 +6,6 @@ import com.emi.exception.DomainException;
 import com.emi.model.entity.Product;
 import com.emi.model.reposetory.ProductJpaRepository;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -129,28 +126,17 @@ public class ProductService {
         }
         return urls;
     }
+//
+//    @Transactional(readOnly = true)
+//    public ProductResponse getProduct(String productId) {
+//        return toResponse(findProduct(productId));
+//    }
 
     @Transactional(readOnly = true)
-    public ProductResponse getProduct(String productId) {
-        return toResponse(findProduct(productId));
-    }
-
-    @Transactional(readOnly = true)
-    public Page<ProductResponse> listProducts(String productType, Boolean inStockOnly, String search, int page, int size) {
-        int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), 100);
-        PageRequest pageRequest = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        String typeFilter = (productType != null && !productType.isBlank())
-                ? productType.trim()
-                : null;
-        String queryPattern = (search != null && !search.isBlank())
-                ? "%" + search.trim().toLowerCase() + "%"
-                : null;
-        boolean filterInStock = Boolean.TRUE.equals(inStockOnly);
-
-        Page<Product> products = productJpaRepository.searchProducts(typeFilter, filterInStock, queryPattern, pageRequest);
-        return products.map(this::toResponse);
+    public List<ProductResponse> listProducts() {
+        return productJpaRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private Product findProduct(String productId) {

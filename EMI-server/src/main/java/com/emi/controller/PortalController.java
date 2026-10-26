@@ -19,7 +19,7 @@ public class PortalController {
     private final PortalService portalService;
 
     @GetMapping
-    @PreAuthorize("hasRole('CUSTOMER')")
+    // @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> getPortal(@CurrentUserId String userId, Authentication authentication) {
         ApiResponse body = ApiResponse.success();
         portalService.portal(userId, authentication).forEach(body::add);

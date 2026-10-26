@@ -35,14 +35,6 @@ public class MetaController {
         CompanyProperties c = companyProperties;
         CompanyProperties.Defaults d = c.getDefaults();
 
-        Map<String, Object> company = new LinkedHashMap<>();
-        company.put("name", c.getName());
-        company.put("short", c.getShortName());
-        company.put("address", c.getAddress());
-        company.put("phone", c.getPhone());
-        company.put("email", c.getEmail());
-        company.put("gstin", c.getGstin());
-
         Map<String, Object> defaults = new LinkedHashMap<>();
         defaults.put("rate", d.getRate());
         defaults.put("interestType", d.getInterestType());
@@ -62,7 +54,6 @@ public class MetaController {
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.success()
-                .add("company", company)
                 .add("upiId", c.getUpi())
                 .add("defaults", defaults)
                 .add("paymentMethods", paymentMethods)

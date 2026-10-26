@@ -40,18 +40,10 @@ public class PortalService {
         }
 
         CompanyProperties c = companyProperties;
-        Map<String, Object> company = new LinkedHashMap<>();
-        company.put("name", c.getName());
-        company.put("short", c.getShortName());
-        company.put("address", c.getAddress());
-        company.put("phone", c.getPhone());
-        company.put("email", c.getEmail());
-        company.put("gstin", c.getGstin());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("customer", customer);
         result.put("finances", finances);
-        result.put("company", company);
         result.put("upiId", c.getUpi());
         result.put("upiLinks", upiLinks(finances));
         return result;

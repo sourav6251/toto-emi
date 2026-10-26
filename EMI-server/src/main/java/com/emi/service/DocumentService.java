@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -42,12 +43,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.time.ZoneId;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -359,12 +355,16 @@ public class DocumentService {
     }
 
     @Transactional
-    public List<CustomerDocumentResponse> attachBatchToCustomer(String userId, boolean isAdmin, CustomerDocumentBatchRequest request) {
+    public record PreparedDocumentBatch(String customerId, List<AttachDocumentRequest> documents) {
+    }
+
+    @Transactional(readOnly = true)
+    public PreparedDocumentBatch prepareBatchForCustomer(CustomerDocumentBatchRequest request) {
         Customer customer = customerJpaRepository.findById(request.getCustomerId().trim())
                 .or(() -> customerJpaRepository.findByUserId(request.getCustomerId().trim()))
                 .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
 
-        List<AttachDocumentRequest> docs = new java.util.ArrayList<>();
+        List<AttachDocumentRequest> docs = new ArrayList<>();
         if (request.getDocuments() != null && !request.getDocuments().isEmpty()) {
             docs.addAll(request.getDocuments());
         } else if (request.getFile() != null && !request.getFile().isEmpty()) {
@@ -378,17 +378,23 @@ public class DocumentService {
         if (docs.isEmpty()) {
             throw new DomainException("At least one document file is required", HttpStatus.BAD_REQUEST);
         }
-
-        List<CustomerDocumentResponse> responses = new java.util.ArrayList<>();
         for (AttachDocumentRequest doc : docs) {
             if (doc.getFile() == null || doc.getFile().isEmpty()) {
                 throw new DomainException("File is required for " + doc.getKey(), HttpStatus.BAD_REQUEST);
             }
-            UploadedFileResponse uploaded = upload(userId, doc.getFile(), doc.getKey(), doc.getFileName());
-            CustomerDocumentResponse res = attachToCustomer(userId, isAdmin, customer.getCustomerId(), doc.getKey(), uploaded.getId(), null);
-            responses.add(res);
         }
-        return responses;
+
+        return new PreparedDocumentBatch(customer.getCustomerId(), docs);
+    }
+
+    // Runs on AsyncConfig's pool; failures are logged there since nothing is left to respond to the client.
+    @Async
+    @Transactional
+    public void attachBatchToCustomerAsync(String userId, boolean isAdmin, String customerId, List<AttachDocumentRequest> docs) {
+        for (AttachDocumentRequest doc : docs) {
+            UploadedFileResponse uploaded = upload(userId, doc.getFile(), doc.getKey(), doc.getFileName());
+            attachToCustomer(userId, isAdmin, customerId, doc.getKey(), uploaded.getId(), null);
+        }
     }
 
     @Transactional(readOnly = true)

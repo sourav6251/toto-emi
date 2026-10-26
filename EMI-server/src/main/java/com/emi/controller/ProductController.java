@@ -24,44 +24,28 @@ public class ProductController {
     private final ProductService productService;
 
     @Operation(
-            summary = "List and search showroom stock products",
-            description = "Allows CUSTOMER, CUSTOMER_CARE, and ADMIN to browse stock products. Supports filtering by product type, in-stock status, search keyword, and pagination."
+            summary = "List all showroom stock products",
+            description = "Allows CUSTOMER, CUSTOMER_CARE, and ADMIN to browse every stock product, newest first."
     )
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE', 'CUSTOMER')")
-    public ResponseEntity<?> listProducts(
-            @Parameter(description = "Optional filter by product type (e.g. Toto, Battery, Charger, Scooter)")
-            @RequestParam(value = "productType", required = false) String productType,
-            @Parameter(description = "Filter only in-stock items (default true for customers)")
-            @RequestParam(value = "inStockOnly", defaultValue = "false") boolean inStockOnly,
-            @Parameter(description = "Search keyword matching name, brand, or model")
-            @RequestParam(value = "search", required = false) String search,
-            @Parameter(description = "Page number (0-indexed)")
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @Parameter(description = "Number of items per page")
-            @RequestParam(value = "size", defaultValue = "20") int size) {
-
-        var result = productService.listProducts(productType, inStockOnly, search, page, size);
-        return ResponseEntity.ok(ApiResponse.success()
-                .add("products", result.getContent())
-                .add("page", result.getNumber())
-                .add("size", result.getSize())
-                .add("totalElements", result.getTotalElements())
-                .add("totalPages", result.getTotalPages()));
+    public ResponseEntity<?> listProducts() {
+        var products = productService.listProducts();
+        return ResponseEntity.ok(ApiResponse.success().add("data", products));
     }
 
-    @Operation(
-            summary = "Get product details by ID",
-            description = "Retrieves full details of a stock product including its images, price, specifications, and availability."
-    )
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE', 'CUSTOMER')")
-    public ResponseEntity<?> getProduct(
-            @Parameter(description = "Product UUID")
-            @PathVariable("id") String id) {
-        var product = productService.getProduct(id);
-        return ResponseEntity.ok(ApiResponse.success().add("data", product));
-    }
+//    @Operation(
+//            summary = "Get product details by ID",
+//            description = "Retrieves full details of a stock product including its images, price, specifications, and availability."
+//    )
+//    @GetMapping("/{id}")
+//    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE', 'CUSTOMER')")
+//    public ResponseEntity<?> getProduct(
+//            @Parameter(description = "Product UUID")
+//            @PathVariable("id") String id) {
+//        var product = productService.getProduct(id);
+//        return ResponseEntity.ok(ApiResponse.success().add("data", product));
+//    }
 
     @Operation(
             summary = "Add a new product to stock",
@@ -86,7 +70,7 @@ public class ProductController {
             @Parameter(hidden = true) @CurrentUserId String staffId,
             @Parameter(description = "Product UUID")
             @PathVariable("id") String id,
-            @Valid @ModelAttribute ProductRequest request) {
+            @ModelAttribute ProductRequest request) {
         var product = productService.updateProduct(staffId, id, request);
         return ResponseEntity.ok(ApiResponse.success().add("data", product));
     }
