@@ -53,7 +53,8 @@ public class Finance {
     @Column(nullable = false, unique = true, updatable = false)
     private String assetId;
 
-    @Column(nullable = false, unique = true, length = 50)
+    // Null until an admin adds it, at creation or when approving.
+    @Column(unique = true, length = 50)
     private String doNumber;
 
     @Column(nullable = false, precision = 12, scale = 2)

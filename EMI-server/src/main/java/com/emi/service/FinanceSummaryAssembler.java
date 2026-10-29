@@ -99,7 +99,9 @@ public class FinanceSummaryAssembler {
                 : totalPayable.subtract(paidTotal).max(BigDecimal.ZERO);
 
         String status = f.getStatus() != null ? f.getStatus().name().toLowerCase() : "active";
-        if (f.getStatus() != FinanceStatus.CANCELLED) {
+        if (f.getStatus() == FinanceStatus.PENDING_APPROVAL) {
+            status = "pending";
+        } else if (f.getStatus() != FinanceStatus.CANCELLED) {
             status = outstanding.compareTo(BigDecimal.ZERO) <= 0 ? "closed" : "active";
         }
 

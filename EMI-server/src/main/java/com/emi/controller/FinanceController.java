@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -49,6 +50,16 @@ public class FinanceController {
     public ResponseEntity<?> listFinances(@RequestBody FinanceListRequest request) {
     FinanceService.FinanceList result = financeService.listFinances(
                 request.getStatus(), request.getStartDate(), request.getEndDate());
+        return ResponseEntity.ok(ApiResponse.success()
+                .add("items", result.items())
+                .add("total", result.total()));
+    }
+
+    // Logged-in customer's own loans (summary only, no EMI schedule), newest first.
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> listMyFinances(@CurrentUserId String userId) {
+        FinanceService.FinanceList result = financeService.listCustomerFinances(userId);
         return ResponseEntity.ok(ApiResponse.success()
                 .add("items", result.items())
                 .add("total", result.total()));
@@ -109,10 +120,32 @@ public class FinanceController {
     @PostMapping("/stage3-amounts")
     @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
     public ResponseEntity<?> stage3Amounts(@CurrentUserId String staffId,
+                                           @CurrentUserRole Role role,
                                            @Valid @RequestBody FinanceCreateRequest request) {
 
-        FinanceInfo finance = financeService.createFinance(staffId,  request);
+        FinanceInfo finance = financeService.createFinance(staffId, role == Role.ADMIN, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success().add("data", finance));
+    }
+
+    // Edit a finance that is still waiting for admin approval: same payload as stage 3, EMI schedule rebuilt
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER_CARE')")
+    public ResponseEntity<?> updateFinance(@CurrentUserId String staffId,
+                                           @PathVariable("id") String id,
+                                           @Valid @RequestBody FinanceCreateRequest request) {
+        FinanceInfo finance = financeService.updateFinance(staffId, id, request);
+        return ResponseEntity.ok(ApiResponse.success().add("data", finance));
+    }
+
+    // Admin approves a pending finance and adds its DO number; the finance becomes active.
+    // DO numbers may contain "/", so it is a query param, not a path variable.
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> approveFinance(@CurrentUserId String adminId,
+                                            @PathVariable("id") String id,
+                                            @RequestParam("doNumber") String doNumber) {
+        FinanceInfo finance = financeService.approveFinance(adminId, id, doNumber);
+        return ResponseEntity.ok(ApiResponse.success().add("data", finance));
     }
 
     // Update/replace an already uploaded document:

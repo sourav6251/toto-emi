@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public class DashboardService {
 
-    private static final List<FinanceStatus> EXCLUDED = List.of(FinanceStatus.CANCELLED);
+    private static final List<FinanceStatus> EXCLUDED = List.of(FinanceStatus.CANCELLED, FinanceStatus.PENDING_APPROVAL);
     private static final int TOP_OVERDUE = 8;
     private static final int UPCOMING_DAYS = 7;
 

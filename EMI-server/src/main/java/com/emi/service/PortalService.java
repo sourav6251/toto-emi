@@ -56,7 +56,8 @@ public class PortalService {
         }
         List<Map<String, Object>> links = new ArrayList<>();
         for (FinanceDetailResponse f : finances) {
-            if (f.getNextDue() == null || f.getNextDue().signum() <= 0 || f.getSchedule() == null) {
+            if ("pending".equals(f.getStatus())
+                    || f.getNextDue() == null || f.getNextDue().signum() <= 0 || f.getSchedule() == null) {
                 continue;
             }
             var next = f.getSchedule().stream()

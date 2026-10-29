@@ -37,8 +37,9 @@ import java.util.stream.Collectors;
 public class FollowupService {
 
     private static final String DEFAULT_CALL_STATUS = "Connected";
+    // Finances with nothing to collect: finished ones, and ones not yet approved by an admin
     private static final List<FinanceStatus> FINISHED = List.of(
-            FinanceStatus.CANCELLED, FinanceStatus.CLOSED, FinanceStatus.FORECLOSED);
+            FinanceStatus.CANCELLED, FinanceStatus.CLOSED, FinanceStatus.FORECLOSED, FinanceStatus.PENDING_APPROVAL);
 
     private final FollowupJpaRepository followupJpaRepository;
     private final FinanceJpaRepository financeJpaRepository;

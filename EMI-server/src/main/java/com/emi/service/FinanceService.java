@@ -220,13 +220,13 @@ public class FinanceService {
     public record FinanceList(List<FinanceSummaryDto> items, int total) {
     }
 
-    private static final Set<String> LIST_STATUSES = Set.of("active", "overdue", "closed", "cancelled");
+    private static final Set<String> LIST_STATUSES = Set.of("pending", "active", "overdue", "closed", "cancelled");
 
     @Transactional(readOnly = true)
     public FinanceList listFinances(String status, LocalDate startDate, LocalDate endDate) {
         String wantedStatus = status == null || status.isBlank() ? null : status.trim().toLowerCase();
         if (wantedStatus != null && !LIST_STATUSES.contains(wantedStatus)) {
-            throw new DomainException("status must be one of active, overdue, closed, cancelled");
+            throw new DomainException("status must be one of pending, active, overdue, closed, cancelled");
         }
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new DomainException("startDate must not be after endDate");
@@ -264,7 +264,7 @@ public class FinanceService {
             FinanceSummaryDto dto = summary.dto();
             boolean matches = wantedStatus == null
                     || ("overdue".equals(wantedStatus)
-                            ? dto.getOverdueCount() > 0 && !"cancelled".equals(dto.getStatus())
+                            ? dto.getOverdueCount() > 0 && "active".equals(dto.getStatus())
                             : wantedStatus.equals(dto.getStatus()));
             if (matches) {
                 items.add(dto);
@@ -273,8 +273,46 @@ public class FinanceService {
         return new FinanceList(items, items.size());
     }
 
+    // Logged-in customer's own loans, newest first, cancelled ones left out.
+    @Transactional(readOnly = true)
+    public FinanceList listCustomerFinances(String userId) {
+        Customer c = customerJpaRepository.findByUserId(userId)
+                .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
+
+        List<Finance> finances = financeJpaRepository.findAllByCustomerId(c.getCustomerId()).stream()
+                .filter(f -> f.getStatus() != FinanceStatus.CANCELLED)
+                .sorted(Comparator.comparing(Finance::getCreatedAt).reversed())
+                .toList();
+        if (finances.isEmpty()) {
+            return new FinanceList(List.of(), 0);
+        }
+
+        Map<String, List<EmiInstallment>> installmentsByFinance = emiInstallmentJpaRepository
+                .findAllByFinanceIdIn(finances.stream().map(Finance::getFinanceId).toList())
+                .stream()
+                .sorted(Comparator.comparing(EmiInstallment::getInstallmentNo))
+                .collect(Collectors.groupingBy(EmiInstallment::getFinanceId));
+
+        Map<String, Asset> assets = assetJpaRepository
+                .findAllById(finances.stream().map(Finance::getAssetId).filter(Objects::nonNull).toList())
+                .stream()
+                .collect(Collectors.toMap(Asset::getAssetId, a -> a));
+
+        String assignedTo = c.getAssignedStaffId() == null ? "Unassigned"
+                : userJpaRepository.findById(c.getAssignedStaffId()).map(Users::getFullName).orElse("Unassigned");
+
+        LocalDate today = LocalDate.now();
+        List<FinanceSummaryDto> items = finances.stream()
+                .map(f -> financeSummaryAssembler.assemble(f, c, assignedTo, assets.get(f.getAssetId()),
+                        installmentsByFinance.getOrDefault(f.getFinanceId(), List.of()), today).dto())
+                .toList();
+        return new FinanceList(items, items.size());
+    }
+
+    // Customer care cannot give a DO number: their finance waits for an admin, who adds the DO number while
+    // approving it. An admin may give one here, and then the finance starts active; without one it waits too.
     @Transactional
-    public FinanceInfo createFinance(String staffId, FinanceCreateRequest request) {
+    public FinanceInfo createFinance(String staffId, boolean isAdmin, FinanceCreateRequest request) {
         Customer customer = customerJpaRepository.findById(request.getCustomerId())
                 .or(() -> customerJpaRepository.findByUserId(request.getCustomerId()))
                 .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
@@ -284,16 +322,16 @@ public class FinanceService {
 //        if (!isAdmin && customer.getAssignedStaffId() != null && !customer.getAssignedStaffId().equals(staffId)) {
 //            throw new DomainException("Customer is not assigned to you", HttpStatus.FORBIDDEN);
 //        }
-        if (request.getDownPayment().compareTo(request.getProductPrice()) >= 0) {
-            throw new DomainException("Down payment must be less than the product price");
+        checkTerms(request);
+        String doNumber = null;
+        if (hasDoNumber(request)) {
+            if (!isAdmin) {
+                throw new DomainException("DO number is added by an admin when approving the finance",
+                        HttpStatus.FORBIDDEN);
+            }
+            doNumber = availableDoNumber(request.getDoNumber());
         }
-        String doNumber = DoNumbers.clean(request.getDoNumber());
-        if (!DoNumbers.isValid(doNumber)) {
-            throw new DomainException(DO_NUMBER_INVALID);
-        }
-        if (financeJpaRepository.existsByDoNumberKey(DoNumbers.key(doNumber))) {
-            throw new DomainException("DO number already exists", HttpStatus.CONFLICT);
-        }
+        boolean active = doNumber != null;
 
         BigDecimal financeAmount = request.getProductPrice().subtract(request.getDownPayment());
         EmiCalculator.Plan plan = EmiCalculator.calculate(
@@ -339,7 +377,9 @@ public class FinanceService {
                 .graceDays(request.getGraceDays() != null ? request.getGraceDays() : 0)
                 .lateFeeAmount(orZero(request.getLateFeeAmount()))
                 .overduePercentage(orZero(request.getOverduePercentage()))
-                .status(FinanceStatus.PENDING_APPROVAL)
+                .status(active ? FinanceStatus.ACTIVE : FinanceStatus.PENDING_APPROVAL)
+                .approvedBy(active ? staffId : null)
+                .approvedAt(active ? OffsetDateTime.now(INDIA) : null)
                 .remarks(request.getRemarks())
                 .createdBy(staffId)
                 .build());
@@ -360,18 +400,8 @@ public class FinanceService {
             financeDocumentJpaRepository.save(fd);
         }
 
-        List<EmiInstallment> installments = new ArrayList<>();
-        for (EmiCalculator.Row row : plan.rows()) {
-            installments.add(EmiInstallment.builder()
-                    .financeId(finance.getFinanceId())
-                    .installmentNo(row.installmentNo())
-                    .dueDate(request.getFirstEmiDate().plusMonths(row.installmentNo() - 1L))
-                    .principalAmount(row.principal())
-                    .interestAmount(row.interest())
-                    .emiAmount(row.emi())
-                    .build());
-        }
-        installments = emiInstallmentJpaRepository.saveAll(installments);
+        List<EmiInstallment> installments = emiInstallmentJpaRepository.saveAll(
+                schedule(finance.getFinanceId(), plan, request.getFirstEmiDate()));
 
         auditService.log(staffId, "Finance created",
                 finance.getFinanceNumber() + " — ₹" + financeAmount.stripTrailingZeros().toPlainString()
@@ -379,6 +409,151 @@ public class FinanceService {
                 finance.getFinanceNumber());
 
         return toInfo(finance, asset, installments);
+    }
+
+    // Corrects a finance that is still waiting for approval: takes the full stage 3 payload again (without a
+    // DO number, which comes with approval) and rebuilds the EMI schedule. Once approved it can't be edited.
+    @Transactional
+    public FinanceInfo updateFinance(String staffId, String id, FinanceCreateRequest request) {
+        Finance finance = financeJpaRepository.findByFinanceNumber(id)
+                .or(() -> financeJpaRepository.findById(id))
+                .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
+        if (finance.getStatus() != FinanceStatus.PENDING_APPROVAL) {
+            throw new DomainException("Finance is " + finance.getStatus().name().toLowerCase()
+                    + " and can no longer be edited", HttpStatus.CONFLICT);
+        }
+        Customer customer = customerJpaRepository.findById(request.getCustomerId())
+                .or(() -> customerJpaRepository.findByUserId(request.getCustomerId()))
+                .orElseThrow(() -> new DomainException("Customer not found", HttpStatus.NOT_FOUND));
+        if (!customer.getCustomerId().equals(finance.getCustomerId())) {
+            throw new DomainException("The customer of a finance cannot be changed");
+        }
+        if (hasDoNumber(request)) {
+            throw new DomainException("DO number is added by an admin when approving the finance");
+        }
+        checkTerms(request);
+
+        List<EmiInstallment> oldSchedule = emiInstallmentJpaRepository
+                .findAllByFinanceIdOrderByInstallmentNo(finance.getFinanceId());
+        if (oldSchedule.stream().anyMatch(i -> i.getAmountPaid() != null && i.getAmountPaid().signum() > 0)) {
+            throw new DomainException("Finance already has payments and cannot be edited", HttpStatus.CONFLICT);
+        }
+
+        BigDecimal financeAmount = request.getProductPrice().subtract(request.getDownPayment());
+        EmiCalculator.Plan plan = EmiCalculator.calculate(
+                financeAmount, request.getInterestRate(), request.getTenureMonths());
+
+        FinanceCreateRequest.AssetRequest a = request.getAsset();
+        Asset asset = assetJpaRepository.findById(finance.getAssetId())
+                .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
+        asset.setProductType(a.getProductType().trim());
+        asset.setProductName(a.getProductName().trim());
+        asset.setBrand(a.getBrand());
+        asset.setModel(a.getModel());
+        asset.setVehicleNumber(a.getVehicleNumber());
+        asset.setRegistrationNumber(a.getRegistrationNumber());
+        asset.setPurchasePrice(request.getProductPrice());
+        asset.setDealerName(a.getDealerName());
+        asset.setDealerContact(a.getDealerContact());
+        asset.setPurchaseDate(a.getPurchaseDate());
+        asset = assetJpaRepository.save(asset);
+
+        finance.setProductPrice(request.getProductPrice());
+        finance.setDownPayment(request.getDownPayment());
+        finance.setFinanceAmount(financeAmount);
+        finance.setInterestRate(request.getInterestRate());
+        finance.setTenureMonths(request.getTenureMonths());
+        finance.setEmiAmount(plan.emi());
+        finance.setTotalInterest(plan.totalInterest());
+        finance.setProcessingFee(orZero(request.getProcessingFee()));
+        finance.setOtherCharges(orZero(request.getOtherCharges()));
+        finance.setTotalPayable(plan.totalPayable());
+        finance.setFirstEmiDate(request.getFirstEmiDate());
+        finance.setEmiDueDay(request.getFirstEmiDate().getDayOfMonth());
+        finance.setGraceDays(request.getGraceDays() != null ? request.getGraceDays() : 0);
+        finance.setLateFeeAmount(orZero(request.getLateFeeAmount()));
+        finance.setOverduePercentage(orZero(request.getOverduePercentage()));
+        finance.setRemarks(request.getRemarks());
+        finance = financeJpaRepository.save(finance);
+
+        // Old rows must be gone before the new ones are inserted (unique finance + installment number).
+        emiInstallmentJpaRepository.deleteAll(oldSchedule);
+        emiInstallmentJpaRepository.flush();
+        List<EmiInstallment> installments = emiInstallmentJpaRepository.saveAll(
+                schedule(finance.getFinanceId(), plan, request.getFirstEmiDate()));
+
+        auditService.log(staffId, "Finance updated",
+                finance.getFinanceNumber() + " — ₹" + financeAmount.stripTrailingZeros().toPlainString(),
+                finance.getFinanceNumber());
+
+        return toInfo(finance, asset, installments);
+    }
+
+    // Admin approval: the admin enters the DO number from the dealer's delivery order, which is saved on the
+    // finance as it becomes active.
+    @Transactional
+    public FinanceInfo approveFinance(String adminId, String id, String doNumber) {
+        Finance finance = financeJpaRepository.findByFinanceNumber(id)
+                .or(() -> financeJpaRepository.findById(id))
+                .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
+        if (finance.getStatus() != FinanceStatus.PENDING_APPROVAL) {
+            throw new DomainException("Finance " + finance.getFinanceNumber() + " is already "
+                    + finance.getStatus().name().toLowerCase(), HttpStatus.CONFLICT);
+        }
+
+        finance.setDoNumber(availableDoNumber(doNumber));
+        finance.setStatus(FinanceStatus.ACTIVE);
+        finance.setApprovedBy(adminId);
+        finance.setApprovedAt(OffsetDateTime.now(INDIA));
+        finance = financeJpaRepository.save(finance);
+
+        auditService.log(adminId, "Finance approved",
+                finance.getFinanceNumber() + " — DO " + finance.getDoNumber(), finance.getFinanceNumber());
+
+        Asset asset = assetJpaRepository.findById(finance.getAssetId())
+                .orElseThrow(() -> new DomainException("Finance not found", HttpStatus.NOT_FOUND));
+        return toInfo(finance, asset,
+                emiInstallmentJpaRepository.findAllByFinanceIdOrderByInstallmentNo(finance.getFinanceId()));
+    }
+
+    private static void checkTerms(FinanceCreateRequest request) {
+        if (request.getDownPayment().compareTo(request.getProductPrice()) >= 0) {
+            throw new DomainException("Down payment must be less than the product price");
+        }
+    }
+
+    private static boolean hasDoNumber(FinanceCreateRequest request) {
+        return request.getDoNumber() != null && !request.getDoNumber().isBlank();
+    }
+
+    // Cleans a typed-in DO number and makes sure it is well formed and not used by another finance.
+    private String availableDoNumber(String raw) {
+        String doNumber = DoNumbers.clean(raw);
+        if (doNumber.isEmpty()) {
+            throw new DomainException("DO number is required");
+        }
+        if (!DoNumbers.isValid(doNumber)) {
+            throw new DomainException(DO_NUMBER_INVALID);
+        }
+        if (financeJpaRepository.existsByDoNumberKey(DoNumbers.key(doNumber))) {
+            throw new DomainException("DO number already exists", HttpStatus.CONFLICT);
+        }
+        return doNumber;
+    }
+
+    private static List<EmiInstallment> schedule(String financeId, EmiCalculator.Plan plan, LocalDate firstEmiDate) {
+        List<EmiInstallment> installments = new ArrayList<>();
+        for (EmiCalculator.Row row : plan.rows()) {
+            installments.add(EmiInstallment.builder()
+                    .financeId(financeId)
+                    .installmentNo(row.installmentNo())
+                    .dueDate(firstEmiDate.plusMonths(row.installmentNo() - 1L))
+                    .principalAmount(row.principal())
+                    .interestAmount(row.interest())
+                    .emiAmount(row.emi())
+                    .build());
+        }
+        return installments;
     }
 
     private static BigDecimal orZero(BigDecimal value) {

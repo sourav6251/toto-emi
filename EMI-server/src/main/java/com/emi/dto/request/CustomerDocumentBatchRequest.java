@@ -2,6 +2,7 @@ package com.emi.dto.request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,6 +25,7 @@ public class CustomerDocumentBatchRequest {
 
     // Optional direct single-document fields for multipart uploads
     private MultipartFile file;
+    @Size(max = 30, message = "Document type cannot exceed 30 characters")
     private String key;
     private String fileName;
     private String number;

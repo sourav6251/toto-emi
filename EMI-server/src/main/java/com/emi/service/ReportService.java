@@ -61,7 +61,8 @@ public class ReportService {
         }
         LocalDate today = LocalDate.now();
 
-        List<Object[]> rows = financeJpaRepository.findInScope(List.of(FinanceStatus.CANCELLED), true, "", true);
+        List<Object[]> rows = financeJpaRepository.findInScope(
+                List.of(FinanceStatus.CANCELLED, FinanceStatus.PENDING_APPROVAL), true, "", true);
         Map<String, List<EmiInstallment>> installments = rows.isEmpty() ? Map.of()
                 : emiInstallmentJpaRepository.findAllByFinanceIdIn(
                                 rows.stream().map(r -> ((Finance) r[0]).getFinanceId()).toList()).stream()

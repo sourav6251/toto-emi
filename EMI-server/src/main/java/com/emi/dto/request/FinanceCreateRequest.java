@@ -47,7 +47,7 @@ public class FinanceCreateRequest {
     @Max(value = 60, message = "Tenure cannot exceed 60 months")
     private Integer tenureMonths;
 
-    @NotBlank(message = "DO number is required")
+    // Admin only. Customer care leaves it out; the admin adds it when approving the finance.
     @Size(max = 50, message = "DO number is too long")
     private String doNumber;
 

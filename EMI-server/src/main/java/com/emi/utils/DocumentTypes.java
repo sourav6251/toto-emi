@@ -9,14 +9,14 @@ public final class DocumentTypes {
     }
 
     public static final List<DocType> ALL = List.of(
-            new DocType("voter", "Voter Card", "Customer", true, true),
-            new DocType("aadhaar", "Aadhaar Card", "Customer", true, true),
-            new DocType("pan", "PAN Card", "Customer", true, true),
+            new DocType("voter", "Voter Card", "Customer", false, true),
+            new DocType("aadhaar", "Aadhaar Card", "Customer", false, true),
+            new DocType("pan", "PAN Card", "Customer", false, true),
             new DocType("gold", "Gold-related document", "Security", false, false),
             new DocType("land", "Land Record", "Security", false, true),
             new DocType("gst", "GST Number / GST Bill", "Security", false, true),
-            new DocType("do", "DO Document", "Asset", true, true),
-            new DocType("bill", "Purchase Bill", "Asset", true, true),
+            new DocType("do", "DO Document", "Asset", false, true),
+            new DocType("bill", "Purchase Bill", "Asset", false, true),
             new DocType("asset_other", "Other vehicle/product document", "Asset", false, false));
 
     private DocumentTypes() {

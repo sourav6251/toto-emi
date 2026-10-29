@@ -78,6 +78,9 @@ public class PaymentService {
         if (!isAdmin && !inStaffScope(customer, staffId)) {
             throw new DomainException("Finance not found", HttpStatus.NOT_FOUND);
         }
+        if (finance.getStatus() == FinanceStatus.PENDING_APPROVAL) {
+            throw new DomainException("Payments cannot be recorded until an admin approves this finance");
+        }
         if (Set.of(FinanceStatus.CANCELLED, FinanceStatus.CLOSED, FinanceStatus.FORECLOSED).contains(finance.getStatus())) {
             throw new DomainException("Payments cannot be recorded on a "
                     + finance.getStatus().name().toLowerCase() + " finance");
@@ -390,6 +393,9 @@ public class PaymentService {
         if (!financeJpaRepository.isUsersFinance(paymentRequest.getUserID(), finance.getFinanceId())) {
             throw new DomainException("Choose correct finance");
         }
+        if (finance.getStatus() == FinanceStatus.PENDING_APPROVAL) {
+            throw new DomainException("Payments cannot be made until this finance is approved");
+        }
         if (Set.of(FinanceStatus.CANCELLED, FinanceStatus.CLOSED, FinanceStatus.FORECLOSED).contains(finance.getStatus())) {
             throw new DomainException("Payments cannot be made on a "
                     + finance.getStatus().name().toLowerCase() + " finance");
@@ -452,6 +458,9 @@ public class PaymentService {
 
         if (!financeJpaRepository.isUsersFinance(userId, finance.getFinanceId())) {
             throw new DomainException("Choose correct finance");
+        }
+        if (finance.getStatus() == FinanceStatus.PENDING_APPROVAL) {
+            throw new DomainException("AutoPay cannot be set up until this finance is approved");
         }
         if (Set.of(FinanceStatus.CANCELLED, FinanceStatus.CLOSED, FinanceStatus.FORECLOSED).contains(finance.getStatus())) {
             throw new DomainException("AutoPay cannot be configured for a "
